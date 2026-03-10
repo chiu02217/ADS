@@ -1,10 +1,9 @@
 package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
-
 import java.util.HashSet;
 import java.util.Set;
 
-public class DistinctOperator extends BaseOperator {
+public class DistinctOperator extends Operator {
     private Operator inputSource;
     private Tuple comparedTuple = null;
     private boolean isSorted = false;

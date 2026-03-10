@@ -1,59 +1,64 @@
 package ed.inf.adbs.lightdb;
-
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * The Tuple class represents a row of data.
- *
- * You will need to modify this class, obviously :).
  */
-import java.util.ArrayList;
-import java.util.List;
-
 public class Tuple {
-    private List<Integer> cols;
+    private List<Integer> attrs;
 
-    // constructor for select
+    // tuple constructor(for select)
     public Tuple(String tuple) {
-        this.cols = new ArrayList<>();
+        this.attrs = new ArrayList<>();
         if (tuple != null) {
             // ex: 1, 2, 3 => [1,2,3]
             String[] attrs = tuple.trim().split(",");
             for (String attr : attrs) {
                 if (attr !=null && !attr.equals(" ")) {
-                    this.cols.add(Integer.parseInt(attr.trim()));
+                    this.attrs.add(Integer.parseInt(attr.trim()));
                 }
                 else {
-                    this.cols.add(null);
+                    this.attrs.add(null);
                 }
             }
         }
     }
     // constructor for project
-    public Tuple(List<Integer> cols) {
-        this.cols = new ArrayList<>(cols);
+    public Tuple(List<Integer> attrs) {
+        this.attrs = new ArrayList<>(attrs);
     }
-    ///
-    ///
-    ///
+    /**
+     * ex: [100, 200, 300] => 100, 200, 300
+     * @return
+     */
     @Override
     public String toString() {
-        if (cols == null || cols.isEmpty()) return "";
+        if (attrs == null || attrs.isEmpty()) return "";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < cols.size(); i++) {
-            sb.append(cols.get(i));
-            if (i < cols.size() - 1) sb.append(",");
+        for (int i = 0; i < attrs.size(); i++) {
+            sb.append(attrs.get(i));
+            if (i < attrs.size() - 1) sb.append(",");
         }
         return sb.toString();
     }
 
-    public List<Integer> getCols() {
-        return cols;
+    /**
+     * get tuple's attrs
+     * @return
+     */
+    public List<Integer> getAttrs() {
+        return attrs;
     }
 
+    /**
+     * get value of the specific index of the tuple
+     * @param index
+     * @return
+     */
     public int getKeyValue(int index) {
-        if (index >= 0 && index < cols.size()) {
-            return cols.get(index);
+        if (index >= 0 && index < attrs.size()) {
+            return attrs.get(index);
         }
         throw new IndexOutOfBoundsException("Tuple index out of range: " + index);
     }

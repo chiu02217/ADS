@@ -6,7 +6,7 @@ import net.sf.jsqlparser.expression.Expression;
 
 import java.io.IOException;
 
-public class SelectOperator extends BaseOperator{
+public class SelectOperator extends Operator{
     private Operator inputSource;
     private Expression expression;
 

@@ -1,6 +1,5 @@
 package ed.inf.adbs.lightdb.utils;
 import ed.inf.adbs.lightdb.Tuple;
-import ed.inf.adbs.lightdb.schema.Schema;
 import net.sf.jsqlparser.expression.*;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
@@ -11,7 +10,10 @@ import net.sf.jsqlparser.schema.Column;
 
 import java.util.List;
 
-/// class to handle predicate
+/**
+ *
+ *  class to handle predicate
+  */
 public class Visitor extends ExpressionVisitorAdapter{
     private Tuple currentTuple;
     // store most recent value of the leaf
@@ -60,6 +62,13 @@ public class Visitor extends ExpressionVisitorAdapter{
         this.currentResult = currentResult;
     }
 
+    /**
+     * whether predicate conform to a specific expression
+     * @param tuple
+     * @param tableName
+     * @param expr : JSQLParser Expression tree
+     * @return
+     */
     public boolean evaluate(Tuple tuple, String tableName, Expression expr) {
         this.currentTuple = tuple;
         this.tableName = tableName;
@@ -75,7 +84,10 @@ public class Visitor extends ExpressionVisitorAdapter{
         currentValue = (int) value.getValue();
     }
 
-    //  WHERE A > 5
+    /**
+     * get the value of the specific column of the current tuple
+     * @param column Column
+     */
     @Override
     public void visit(Column column) {
         String tableName = column.getTable().getName();
@@ -84,14 +96,14 @@ public class Visitor extends ExpressionVisitorAdapter{
         }
         String columnName = column.getColumnName();
         // get index
-        int index = getJoinColumnNum(tableName, columnName);
-        if (index == -1) {
-            throw new RuntimeException("Column Not Found in " + tableName + "." + columnName);
-        }
+        int index = ColumnChecker.getColumnIndexAfterJoin(column, this.joinTables);
         currentValue = currentTuple.getKeyValue(index);
     }
 
-    // >
+    /**
+     * >
+     * @param greaterThan
+     */
     @Override
     public void visit(GreaterThan greaterThan) {
         greaterThan.getLeftExpression().accept(this);
@@ -100,7 +112,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         int rightLeaf = currentValue;
         currentResult = leftLeaf > rightLeaf;
     }
-    // <
+
+    /**
+     * <
+     * @param minorThan
+     */
     @Override
     public void visit(MinorThan minorThan) {
         minorThan.getLeftExpression().accept(this);
@@ -111,7 +127,10 @@ public class Visitor extends ExpressionVisitorAdapter{
         //System.out.println("Debug: " + leftLeaf + " < " + rightLeaf + " = " + currentResult);
     }
 
-    // ==
+    /**
+     * ==
+     * @param equalsTo
+     */
     @Override
     public void visit(EqualsTo equalsTo) {
         equalsTo.getLeftExpression().accept(this);
@@ -120,7 +139,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         int rightLeaf = currentValue;
         currentResult = leftLeaf == rightLeaf;
     }
-    // !=
+
+    /**
+     * !=
+     * @param notEqualsTo
+     */
     @Override
     public void visit(NotEqualsTo notEqualsTo) {
         notEqualsTo.getLeftExpression().accept(this);
@@ -129,7 +152,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         int rightLeaf = currentValue;
         currentResult = leftLeaf != rightLeaf;
     }
-    // >=
+
+    /**
+     * >=
+     * @param greaterThanEquals
+     */
     @Override
     public void visit(GreaterThanEquals greaterThanEquals) {
         greaterThanEquals.getLeftExpression().accept(this);
@@ -138,7 +165,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         int rightLeaf = currentValue;
         currentResult = (leftLeaf >= rightLeaf);
     }
-    // <=
+
+    /**
+     * <=
+     * @param minorThanEquals
+     */
     @Override
     public void visit(MinorThanEquals minorThanEquals) {
         minorThanEquals.getLeftExpression().accept(this);
@@ -148,7 +179,10 @@ public class Visitor extends ExpressionVisitorAdapter{
         currentResult = (leftLeaf <= rightLeaf);
     }
 
-    //  AND &&
+    /**
+     * AND
+     * @param andExpression
+     */
     @Override
     public void visit(AndExpression andExpression) {
         andExpression.getLeftExpression().accept(this);
@@ -157,7 +191,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         boolean rightLeaf = currentResult;
         currentResult = leftLeaf && rightLeaf;
     }
-    // OR ||
+
+    /**
+     * OR
+     * @param orExpression
+     */
     @Override
     public void visit(OrExpression orExpression) {
         orExpression.getLeftExpression().accept(this);
@@ -168,7 +206,11 @@ public class Visitor extends ExpressionVisitorAdapter{
         }
         orExpression.getRightExpression().accept(this);
     }
-    // *
+
+    /**
+     * * : multuply
+     * @param multiplication
+     */
     @Override
     public void visit(Multiplication multiplication) {
         multiplication.getLeftExpression().accept(this);
@@ -177,27 +219,15 @@ public class Visitor extends ExpressionVisitorAdapter{
         currentValue = left * currentValue; // 計算乘法結果
     }
 
+    /**
+     * +
+     * @param addition
+     */
     @Override
     public void visit(Addition addition) {
         addition.getLeftExpression().accept(this);
         int left = currentValue;
         addition.getRightExpression().accept(this);
         currentValue = left + currentValue;
-    }
-    // only for join
-    private int getJoinColumnNum(String tableName, String columnName) {
-        // 1. 取得所有參與 Join 的表名列表（這需要從執行計畫傳進來）
-        List<String> tables = this.joinTables;
-        int offset = 0;
-
-        for (String t : tables) {
-            if (t.equals(tableName)) {
-                // 找到目標表，加上它在該表內的原始索引
-                return offset + Schema.getInstance().getColumnIndex(t, columnName);
-            }
-            // 如果不是這張表，就加上這張表的總欄位數，繼續往後跳
-            offset += Schema.getInstance().getNumberOfTableCol(t).size();
-        }
-        throw new RuntimeException("Column not found in joined tables: " + tableName + "." + columnName);
     }
 }

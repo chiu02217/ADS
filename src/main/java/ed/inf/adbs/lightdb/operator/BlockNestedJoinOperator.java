@@ -1,10 +1,9 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-public class BlockNestedJoinOperator extends BaseOperator {
+public class BlockNestedJoinOperator extends Operator {
     private Operator leftInputSource;
     private Operator rightInputSource;
 
@@ -13,7 +12,7 @@ public class BlockNestedJoinOperator extends BaseOperator {
     private int bufferIndex = 0;
     private Tuple currentRightTuple = null;
 
-    private static final int _blockSize = 100;
+    private static final int _blockSize = 50000;
 
     public BlockNestedJoinOperator(Operator leftTable, Operator rightTable) {
         this.leftInputSource = leftTable;
@@ -105,11 +104,11 @@ public class BlockNestedJoinOperator extends BaseOperator {
     }
 
     /**
-     * 將左右兩個 Tuple 拼接成一個新的長 Tuple
+     * left tuple join right tuple into newer larger tuple
      */
     private Tuple combineTuples(Tuple left, Tuple right) {
-        List<Integer> combinedValues = new ArrayList<>(left.getCols());
-        combinedValues.addAll(right.getCols());
+        List<Integer> combinedValues = new ArrayList<>(left.getAttrs());
+        combinedValues.addAll(right.getAttrs());
         return new Tuple(combinedValues);
     }
 

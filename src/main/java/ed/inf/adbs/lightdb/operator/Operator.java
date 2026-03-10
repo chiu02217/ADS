@@ -2,21 +2,28 @@ package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
 
-/**
- * The abstract Operator class for the iterator model.
- *
- * Feel free to modify this class, but must keep getNextTuple() and reset()
- */
-public abstract class Operator {
+import java.io.BufferedReader;
+import java.io.IOException;
 
-    /**
-     * Retrieves the next tuple from the iterator.
-     * @return A Tuple object representing the row of data, or NULL if EOF reached.
-     */
-    public abstract Tuple getNextTuple();
+public abstract class Operator extends BaseOperator {
+    protected BufferedReader reader;
+    protected String tablePath;
 
-    /**
-     * Resets the iterator to the start.
-     */
+
+
+    @Override
+    public Tuple getNextTuple() {
+        try {
+            return _getNextTuple();
+        } catch (IOException e) {
+            System.err.println("get next tuple error:" + this.getClass().getSimpleName());
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    protected abstract Tuple _getNextTuple() throws IOException;
+    @Override
     public abstract void reset();
+
 }

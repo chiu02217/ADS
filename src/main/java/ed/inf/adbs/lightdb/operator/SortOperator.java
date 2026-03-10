@@ -1,7 +1,6 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
-import ed.inf.adbs.lightdb.schema.Schema;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 import ed.inf.adbs.lightdb.utils.ColumnChecker;
@@ -11,7 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-public class SortOperator extends BaseOperator {
+public class SortOperator extends Operator {
     private Operator inputSource;
     private List<OrderByElement> orderByElements;
     private String tableName;
@@ -125,7 +124,7 @@ public class SortOperator extends BaseOperator {
         public int compare(Tuple t1, Tuple t2) {
             for (OrderByElement element : orderByElements) {
                 Column col = (Column) element.getExpression();
-                int positionAfterAgg = afterGroupByTuplePosition(col);
+                //int positionAfterAgg = getColumnIndexAfterJoin(col);
                 int val1 = t1.getKeyValue(index);
                 int val2 = t2.getKeyValue(index);
                 // if same values then skip
@@ -140,33 +139,33 @@ public class SortOperator extends BaseOperator {
         }
     }
 
-    private int afterGroupByTuplePosition(Column col) {
-        String tName = (col.getTable() != null && col.getTable().getName() != null)
-                ? col.getTable().getName()
-                : joinTables.get(0);
-        String colName = col.getColumnName();
-        int globalIndex = calOriginalIndex(tName, colName);
+//    private int afterGroupByTuplePosition(Column col) {
+//        String tName = (col.getTable() != null && col.getTable().getName() != null)
+//                ? col.getTable().getName()
+//                : joinTables.get(0);
+//        String colName = col.getColumnName();
+//        int globalIndex = calOriginalIndex(tName, colName);
+//
+//        if (groupByIndexes.isEmpty()) {
+//            return globalIndex;
+//        }
+//        for (int i = 0; i < groupByIndexes.size(); i++) {
+//            if (groupByIndexes.get(i).equals(globalIndex)) {
+//                return i;
+//            }
+//        }
+//        // not found
+//        return -1;
+//    }
 
-        if (groupByIndexes.isEmpty()) {
-            return globalIndex;
-        }
-        for (int i = 0; i < groupByIndexes.size(); i++) {
-            if (groupByIndexes.get(i).equals(globalIndex)) {
-                return i;
-            }
-        }
-        // not found
-        return -1;
-    }
-
-    private int calOriginalIndex(String tName, String colName) {
-        int offset = 0;
-        for (String t : joinTables) {
-            if (t.equals(tName)) {
-                return offset + Schema.getInstance().getColumnIndex(t, colName);
-            }
-            offset += Schema.getInstance().getNumberOfTableCol(t).size();
-        }
-        return offset;
-    }
+//    private int calOriginalIndex(String tName, String colName) {
+//        int offset = 0;
+//        for (String t : joinTables) {
+//            if (t.equals(tName)) {
+//                return offset + Schema.getInstance().getColumnIndex(t, colName);
+//            }
+//            offset += Schema.getInstance().getNumberOfTableCol(t).size();
+//        }
+//        return offset;
+//    }
 }

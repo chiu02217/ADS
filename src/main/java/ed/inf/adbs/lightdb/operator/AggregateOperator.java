@@ -3,10 +3,9 @@ package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
 import ed.inf.adbs.lightdb.utils.Visitor;
 import net.sf.jsqlparser.expression.Expression;
-
 import java.util.*;
 
-public class AggregateOperator extends BaseOperator{
+public class AggregateOperator extends Operator{
     private List<String> aggregationTasks;
     // aggregate by which column(index)
     private List<Integer> aggregationIndexs;

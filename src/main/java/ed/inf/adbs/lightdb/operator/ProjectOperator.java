@@ -1,18 +1,17 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
-import ed.inf.adbs.lightdb.schema.Schema;
-import ed.inf.adbs.lightdb.utils.ColumnChecker;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.statement.select.SelectItem;
-import net.sf.jsqlparser.schema.Column;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ProjectOperator extends BaseOperator {
+import static ed.inf.adbs.lightdb.utils.ColumnChecker.getColumnIndexAfterJoin;
+
+public class ProjectOperator extends Operator {
     private Operator inputSource;
     // all fields after the SELECT and before the FROM
     private List<SelectItem<?>> selectItems;
@@ -104,7 +103,7 @@ public class ProjectOperator extends BaseOperator {
                     selectedCols.add(nextTuple.getKeyValue(aggFuncCounter));
                     aggFuncCounter++;
                 } else {
-                    int index = calculateGlobalIndex(expr);
+                    int index = getColumnIndexAfterJoin(expr, joinTables);
                     selectedCols.add(nextTuple.getKeyValue(index));
                 }
             }
@@ -121,12 +120,12 @@ public class ProjectOperator extends BaseOperator {
     // the matching slot.
     // -----------------------------------------------------------------------
     private int findGroupByPosition(Expression expr) {
-        int targetIndex = calculateGlobalIndex(expr);
+        int index = getColumnIndexAfterJoin(expr, joinTables);
         int pos = 0;
         for (SelectItem<?> item : selectItems) {
             Expression e = item.getExpression();
             if (!(e instanceof Function)) {
-                if (calculateGlobalIndex(e) == targetIndex) {
+                if (getColumnIndexAfterJoin(e, joinTables) == index) {
                     return pos;
                 }
                 pos++;
@@ -138,24 +137,24 @@ public class ProjectOperator extends BaseOperator {
     // Calculate the column's 0-based index across all joined tables,
     // matching the logic in Visitor.getJoinColumnNum() and Parser.
     // -----------------------------------------------------------------------
-    private int calculateGlobalIndex(Expression expr) {
-        if (expr instanceof Column) {
-            Column col = (Column) expr;
-            String tName = (col.getTable() != null && col.getTable().getName() != null)
-                    ? col.getTable().getName()
-                    : joinTables.get(0);
-            String colName = col.getColumnName();
-            int offset = 0;
-            for (String t : joinTables) {
-                if (t.equals(tName)) {
-                    return offset + Schema.getInstance().getColumnIndex(t, colName);
-                }
-                offset += Schema.getInstance().getNumberOfTableCol(t).size();
-            }
-            throw new RuntimeException("Column not found in joined tables: " + tName + "." + colName);
-        }
-        throw new RuntimeException("ProjectOperator: unsupported expression type: " + expr);
-    }
+//    private int calculateGlobalIndex(Expression expr) {
+//        if (expr instanceof Column) {
+//            Column col = (Column) expr;
+//            String tName = (col.getTable() != null && col.getTable().getName() != null)
+//                    ? col.getTable().getName()
+//                    : joinTables.get(0);
+//            String colName = col.getColumnName();
+//            int offset = 0;
+//            for (String t : joinTables) {
+//                if (t.equals(tName)) {
+//                    return offset + Schema.getInstance().getColumnIndex(t, colName);
+//                }
+//                offset += Schema.getInstance().getNumberOfTableCol(t).size();
+//            }
+//            throw new RuntimeException("Column not found in joined tables: " + tName + "." + colName);
+//        }
+//        throw new RuntimeException("ProjectOperator: unsupported expression type: " + expr);
+//    }
     @Override
     public void reset() {
         inputSource.reset();

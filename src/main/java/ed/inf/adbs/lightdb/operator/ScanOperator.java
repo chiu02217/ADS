@@ -3,11 +3,10 @@ package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 
-public class ScanOperator extends BaseOperator{
+public class ScanOperator extends Operator{
     public ScanOperator(String tableName, String tablePath) {
         this.tablePath = tablePath;
         this.reset();

@@ -47,7 +47,7 @@ public class LightDB {
 			if (statement instanceof Select) {
 				PlainSelect plainSelect = ((Select) statement).getPlainSelect();
 				String tableName = plainSelect.getFromItem().toString();
-				String tablePath = Schema.getInstance().getDataPath(tableName);
+				String tablePath = Schema.getInstance().getTablePath(tableName);
 				Operator exePlan = executionPlan(plainSelect, tablePath);
 //				Tuple tuple = exePlan.getNextTuple();
 //				while (tuple  != null) {
@@ -122,14 +122,14 @@ public class LightDB {
 		// scan
 		String firstTable = plainSelect.getFromItem().toString();
 		tables.add(firstTable);
-		Operator root = new ScanOperator(firstTable, Schema.getInstance().getDataPath(firstTable));
+		Operator root = new ScanOperator(firstTable, Schema.getInstance().getTablePath(firstTable));
 
 		// Join
 		if (plainSelect.getJoins() != null) {
 			for (Join join : plainSelect.getJoins()) {
 				String innerTable = join.getRightItem().toString();
 				tables.add(innerTable);
-				Operator rightScan = new ScanOperator(innerTable, Schema.getInstance().getDataPath(innerTable));
+				Operator rightScan = new ScanOperator(innerTable, Schema.getInstance().getTablePath(innerTable));
 				root = new BlockNestedJoinOperator(root, rightScan);
 			}
 		}
@@ -144,7 +144,7 @@ public class LightDB {
 		List<Integer> groupByIndexs = Collections.emptyList(); // 宣告移到外面，預設空列表
 		if (plainSelect.getGroupBy() != null || hasAggTask) {
 			Parser parser = new Parser();
-			groupByIndexs = parser.parseGroupByIndexs(plainSelect, tables);
+			groupByIndexs = parser.getGroupByColIndexs(plainSelect.getGroupBy().getGroupByExpressionList(), tables);
 			groupByCount = groupByIndexs.size(); // <-- FIX: capture size
 
 			List<String> aggTasks = new ArrayList<>();
