@@ -3,6 +3,9 @@ import ed.inf.adbs.lightdb.Tuple;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * class to handle DISTINCT
+ */
 public class DistinctOperator extends Operator {
     private Operator inputSource;
     private Tuple comparedTuple = null;

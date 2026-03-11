@@ -3,15 +3,18 @@ package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
 import java.util.ArrayList;
 import java.util.List;
+
+/**
+ * use BlockNested method to join
+ */
 public class BlockNestedJoinOperator extends Operator {
     private Operator leftInputSource;
     private Operator rightInputSource;
 
-    // outer table
+    // for outer table uses
     private List<Tuple> leftBuffer;
     private int bufferIndex = 0;
     private Tuple currentRightTuple = null;
-
     private static final int _blockSize = 50000;
 
     public BlockNestedJoinOperator(Operator leftTable, Operator rightTable) {
@@ -61,30 +64,35 @@ public class BlockNestedJoinOperator extends Operator {
         this.rightInputSource = rightInputSource;
     }
 
+    /**
+     *
+     * @return
+     */
     @Override
     protected Tuple _getNextTuple(){
         while (true) {
             if (leftBuffer.isEmpty()) {
                 fillBuffer();
+                // represent that there is no tuple to compare and join
                 if (leftBuffer.isEmpty()) return null;
-
                 rightInputSource.reset();
                 currentRightTuple = rightInputSource.getNextTuple();
             }
 
-            // 2. 如果右表已經掃描完當前 Block，清空 Buffer 換下一個 Block
+            // right block is done
             if (currentRightTuple == null) {
+                // no right tuple to join, next round(new left buffer round)
                 leftBuffer.clear();
                 bufferIndex = 0;
                 continue;
             }
-
-            // 3. 在目前的 Buffer 中與當前右表 Tuple 進行配對
+            // compare and join buffersize left tuples to 1 right tuple
             if (bufferIndex < leftBuffer.size()) {
                 Tuple leftTuple = leftBuffer.get(bufferIndex++);
                 return combineTuples(leftTuple, currentRightTuple);
-            } else {
-                // Buffer 配對完一輪，換右表的下一筆
+            }
+            // next right tuple turn
+            else {
                 bufferIndex = 0;
                 currentRightTuple = rightInputSource.getNextTuple();
             }
@@ -92,14 +100,14 @@ public class BlockNestedJoinOperator extends Operator {
     }
 
     /**
-     * 一次讀取 blockSize 數量的 Tuple 進入左表 Buffer
+     * load tuples into buffer
      */
     private void fillBuffer(){
         leftBuffer.clear();
         for (int i = 0; i < _blockSize; i++) {
-            Tuple t = leftInputSource.getNextTuple();
-            if (t == null) break;
-            leftBuffer.add(t);
+            Tuple tuple = leftInputSource.getNextTuple();
+            if (tuple == null) break;
+            leftBuffer.add(tuple);
         }
     }
 

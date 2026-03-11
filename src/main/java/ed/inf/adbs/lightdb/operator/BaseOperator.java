@@ -2,9 +2,7 @@ package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
 /**
- * The abstract Operator class for the iterator model.
- *
- * Feel free to modify this class, but must keep getNextTuple() and reset()
+ * lowest level tof operator
  */
 public abstract class BaseOperator {
 

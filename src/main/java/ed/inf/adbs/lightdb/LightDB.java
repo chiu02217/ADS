@@ -148,7 +148,6 @@ public class LightDB {
 			groupByCount = groupByIndexs.size(); // <-- FIX: capture size
 
 			List<String> aggTasks = new ArrayList<>();
-			List<Integer> aggIndexs = new ArrayList<>();
 			List<Expression> aggExpressions = new ArrayList<>();
 			for (SelectItem<?> item : plainSelect.getSelectItems()) {
 				Expression expr = item.getExpression();
@@ -163,7 +162,7 @@ public class LightDB {
 					}
 				}
 			}
-			root = new AggregateOperator(root, groupByIndexs, aggTasks, aggIndexs, aggExpressions, tables);
+			root = new AggregateOperator(root, groupByIndexs, aggTasks, aggExpressions, tables);
 		}
 
 		// 3. 如果有 ORDER BY，加上 SortOperator

@@ -5,6 +5,9 @@ import ed.inf.adbs.lightdb.Tuple;
 import java.io.BufferedReader;
 import java.io.IOException;
 
+/**
+ * middle layer of operator to handle exception
+ */
 public abstract class Operator extends BaseOperator {
     protected BufferedReader reader;
     protected String tablePath;

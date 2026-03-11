@@ -23,6 +23,7 @@ public class ColumnChecker {
     }
     /**
      * Calculates the absolute index position of the specific field in the tuple after join.
+     * ** can also deal with no "JOIN" condition
      * @param expr
      * @param tables: Joined tables
      * @return int
