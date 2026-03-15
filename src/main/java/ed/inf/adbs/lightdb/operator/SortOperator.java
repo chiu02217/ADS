@@ -143,13 +143,7 @@ public class SortOperator extends Operator {
         index = 0;
     }
     private int calculateTuplePosition(Column col) {
-        // calculate original global index
-        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(col, joinTables);
-
-        // projection push-down mapping
-        int newIndex = (mapping != null)
-                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
-                : originalIndex;
+        int newIndex = ColumnHelper.resolveColumnIndex(col, joinTables, mapping);
 
         // If GROUP BY，find the slot in the group-by prefix
         if (!groupByIndexes.isEmpty()) {

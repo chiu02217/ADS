@@ -108,12 +108,7 @@ public class Visitor extends ExpressionVisitorAdapter{
 //        // get index
 //        int index = ColumnHelper.getColumnIndexAfterJoin(column, this.joinTables);
 //        currentValue = currentTuple.getKeyValue(index);
-        // 計算原始全域索引
-        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(column, joinTables);
-        // 如果有 projection push-down，透過 ColumnMapping 轉換成新位置
-        int tupleIndex = (mapping != null)
-                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
-                : originalIndex;
+        int tupleIndex = ColumnHelper.resolveColumnIndex(column, joinTables, mapping);
         currentValue = currentTuple.getKeyValue(tupleIndex);
     }
 

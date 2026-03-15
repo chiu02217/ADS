@@ -161,11 +161,7 @@ public class ProjectOperator extends Operator {
                     selectedCols.add(nextTuple.getKeyValue(funcCount));
                     funcCount++;
                 } else {
-                    int originalIndex = getColumnIndexAfterJoin(expr, joinTables);
-                    // if projection push-down, mapping to new index
-                    int tupleIndex = (mapping != null)
-                            ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
-                            : originalIndex;
+                    int tupleIndex = ColumnHelper.resolveColumnIndex(expr, joinTables, mapping);
                     selectedCols.add(nextTuple.getKeyValue(tupleIndex));
                 }
             }

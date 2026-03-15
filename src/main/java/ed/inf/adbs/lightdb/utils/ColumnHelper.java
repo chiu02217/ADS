@@ -90,6 +90,20 @@ public class ColumnHelper {
         return mapping;
     }
     /**
+     * calculate the original global index, if there is a projection push down, then mapping the original index
+     *  to new index
+     *
+     * @param expr
+     * @param tables  joined tables (single table if  no join condition)
+     * @param mapping push-down mapping, null if none
+     * @return the index to use when reading from the current tuple
+     */
+    public static int resolveColumnIndex(Expression expr, List<String> tables, Map<Integer, Integer> mapping) {
+        int originalIndex = getColumnIndexAfterJoin(expr, tables);
+        return (mapping != null) ? getValueAfterRemap(mapping, originalIndex) : originalIndex;
+    }
+
+    /**
      * Translates an original global column index to its new compact position(index)
      * using a mapping produced by columnMapping().
      * ex: mapping = { 0→0, 4→1 }, then getKeyValue(0) getKeyValue(1)
