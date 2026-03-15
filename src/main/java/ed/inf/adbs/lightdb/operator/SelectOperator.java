@@ -6,11 +6,12 @@ import net.sf.jsqlparser.expression.Expression;
 
 import java.io.IOException;
 
+/**
+ * class to deal with WHERE predicate
+ */
 public class SelectOperator extends Operator{
     private Operator inputSource;
     private Expression expression;
-
-
     private Visitor visitor;
     private String tableName;
 
@@ -55,7 +56,7 @@ public class SelectOperator extends Operator{
     protected Tuple _getNextTuple() throws IOException {
         try {
             Tuple tuple;
-            // get next (true) tuple
+            // get next tuple
             while ((tuple = inputSource.getNextTuple()) != null) {
                 if (evaluate(tuple, expression)) {
                     return tuple;

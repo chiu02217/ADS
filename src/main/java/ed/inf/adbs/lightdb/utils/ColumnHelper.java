@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
- * class that address computation of columns
+ * class that deal with the computation of columns
  */
 public class ColumnHelper {
     public static int checkAndGetIndex(Expression expr, String tableName, String error) throws IOException {
@@ -28,6 +28,20 @@ public class ColumnHelper {
             throw new IOException(error);
         }
         return index;
+    }
+    /**
+     * return the culumn indexs used to groupby
+     * @param groupbyColList
+     * @param tables
+     * @return
+     */
+    public static List<Integer> getGroupByColIndexs(List<Object> groupbyColList, List<String> tables) {
+        List<Integer> indexs = new ArrayList<>();
+        for (Object col : groupbyColList) {
+            Expression expr = (Expression) col;
+            indexs.add(ColumnHelper.getColumnIndexAfterJoin(expr, tables));
+        }
+        return indexs;
     }
     /**
      * Calculates the absolute index position of the specific field in the tuple after join.
@@ -59,13 +73,12 @@ public class ColumnHelper {
 
     /**
      * Maps original global column indices to new compact positions after
-     *      * projection push-down removes unneeded columns.
-     *      *
-     *      * Example:
-     *      *   Original joined tuple: [A=0, B=1, C=2, D=3, E=4]
-     *      *   indexs = [0, 4]  (only A and E are needed downstream)
-     *      *   buildMapping([0, 4]) → {0→0, 4→1}
-     *      *   Projected tuple: [A_val, E_val]
+     * projection push-down removes unneeded columns.
+     *
+     *  Ex:
+     *  Original joined tuple: [A=0, B=1, C=2, D=3, E=4]
+     *  needed columns indexs = [0, 4]  ( A and E)
+     *  Mapping([0, 4]) → [0→0, 4→1]
      * @param indexs
      * @return
      */
@@ -77,34 +90,36 @@ public class ColumnHelper {
         return mapping;
     }
     /**
-     * Translates an original global column index to its new compact position
-     * using a mapping produced by buildMapping().
-     *
-     * @param mapping             map from original global index to compact position
+     * Translates an original global column index to its new compact position(index)
+     * using a mapping produced by columnMapping().
+     * ex: mapping = { 0→0, 4→1 }, then getKeyValue(0) getKeyValue(1)
+     * @param mapping       map from original global index to compact position
      * @param originalIndex the column's index in the full joined tuple
-     * @return the column's index in the projected tuple
-     * @throws RuntimeException if the index was not retained in the mapping
+     * @return
+     * @throws RuntimeException
      */
-    public static int remap(Map<Integer, Integer> mapping, int originalIndex) {
+    public static int getValueAfterRemap(Map<Integer, Integer> mapping, int originalIndex) {
         Integer pos = mapping.get(originalIndex);
         if (pos == null) {
             throw new RuntimeException(
-                    "Column index " + originalIndex + " not found in projected layout");
+                    "Column index " + originalIndex + " not found");
         }
         return pos;
     }
     /**
      * Collects every global column index referenced after the join tree,
      * i.e. by SELECT, GROUP BY, ORDER BY, and aggregate expressions.
-     *
-     * @param plainSelect the parsed SQL statement
-     * @param tables      all table names in FROM order
+     * ex:
+     *  Original joined tuple: [A=0, B=1, C=2, D=3, E=4]
+     *  needed columns indexs = [0, 4]  ( A and E)
+     * @param plainSelect  SQL
+     * @param tables      all table names
      * @return sorted list of needed global indices
      */
-    public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables) {
-        Set<Integer> needed = new LinkedHashSet<>();
+    public static List<Integer> collectNeededColumnsAfterJoin(PlainSelect plainSelect, List<String> tables) {
+        Set<Integer> needed = new HashSet<>();
 
-        // SELECT clause
+        // SELECT
         for (SelectItem<?> item : plainSelect.getSelectItems()) {
             Expression expr = item.getExpression();
             if (expr instanceof Function) {
@@ -141,25 +156,33 @@ public class ColumnHelper {
     /**
      * Recursively walks an expression and collects the distinct table names
      * of all Column references found.
-     *
+     * Used by WhereDecomposer
      * @param expr   expression to walk
      * @param result accumulates distinct table names found
      */
     public static void collectTableNames(Expression expr, List<String> result) {
         walkColumns(expr, col -> {
             if (col.getTable() != null && col.getTable().getName() != null) {
-                String tName = col.getTable().getName();
-                if (!result.contains(tName)) result.add(tName);
+                String tableName = col.getTable().getName();
+                if (!result.contains(tableName)) result.add(tableName);
             }
         });
     }
+
+    /**
+     * address a single expression
+     * Used by collectNeededColumns
+     * @param expr
+     * @param tables table names FROM
+     * @param needed
+     */
     private static void collectColumnsFromExpr(Expression expr, List<String> tables,
                                                Set<Integer> needed) {
         walkColumns(expr, col -> needed.add(getColumnIndexAfterJoin(col, tables)));
     }
     /**
      * Recursively walks an expression and calls callback for every Column found.
-     *
+     * Used by collectColumnsFromExpr
      * @param expr
      * @param callback action to perform on each Column node
      */

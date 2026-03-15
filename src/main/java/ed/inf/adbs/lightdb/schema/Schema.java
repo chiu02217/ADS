@@ -61,7 +61,7 @@ public final class Schema {
 
     /**
      * get the column's index of the specific col
-     * not put in the ColumnChecker because it needs the schema instance
+     * not put in the ColumnHelper because it needs the schema instance
      * @param tableName
      * @param columnName
      * @return

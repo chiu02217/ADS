@@ -7,10 +7,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import ed.inf.adbs.lightdb.operator.*;
 import ed.inf.adbs.lightdb.schema.Schema;
-import ed.inf.adbs.lightdb.utils.Parser;
+import ed.inf.adbs.lightdb.utils.ColumnHelper;
 import ed.inf.adbs.lightdb.utils.WhereDecomposer;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -102,6 +104,13 @@ public class LightDB {
 			e.printStackTrace();
 		}
 	}
+
+	/**
+	 * Scan → Join → intermediate projection → AggregateOperator → SortOperator → Final Projection → Output
+	 * @param plainSelect
+	 * @param tablePath
+	 * @return
+	 */
 	public static Operator executionPlan(PlainSelect plainSelect, String tablePath) {
 		List<String> tables = new ArrayList<>();
 		boolean hasAggTask = plainSelect.getSelectItems().stream()
@@ -117,7 +126,7 @@ public class LightDB {
 		// Decompose WHERE into single-table selections + join conditions
 		WhereDecomposer decomposer = new WhereDecomposer();
 		decomposer.decompose(plainSelect.getWhere(), tables);
-		Operator root = new ScanOperator(firstTable, Schema.getInstance().getTablePath(firstTable));
+		Operator root = new ScanOperator(Schema.getInstance().getTablePath(firstTable));
 
 		Expression firstTableSelection = decomposer.tableSelections.get(firstTable);
 		if (firstTableSelection != null) {
@@ -130,8 +139,7 @@ public class LightDB {
 			for (Join join : plainSelect.getJoins()) {
 				String innerTable = join.getRightItem().toString();
 				// Right-side scan with push-down selection
-				Operator rightScan = new ScanOperator(innerTable,
-						Schema.getInstance().getTablePath(innerTable));
+				Operator rightScan = new ScanOperator(Schema.getInstance().getTablePath(innerTable));
 				Expression innerSel = decomposer.tableSelections.get(innerTable);
 				if (innerSel != null) {
 					SelectOperator sel = new SelectOperator(rightScan, innerSel, innerTable);
@@ -146,19 +154,35 @@ public class LightDB {
 			}
 		}
 
-		// WHERE 條件
-//		if (plainSelect.getWhere() != null) {
-//			SelectOperator sp = new SelectOperator(root, plainSelect.getWhere(), firstTable);
-//			sp.getVisitor().setJoinTables(tables);
-//			root = sp;
-//		}
 		int groupByCount = 0;
-		List<Integer> groupByIndexs = Collections.emptyList(); // 宣告移到外面，預設空列表
+		List<Integer> groupByIndexs = Collections.emptyList();
+		// Projection push-down
+		// condition： JOIN && not SELECT ALL
+		// only keep the needed columns after join
+		boolean isSelectAll = plainSelect.getSelectItems().get(0).toString().equals("*");
+		Map<Integer, Integer> mapping = null;
+
+		if (tables.size() > 1 && !isSelectAll) {
+			List<Integer> neededCols = ColumnHelper.collectNeededColumnsAfterJoin(plainSelect, tables);
+			if (!neededCols.isEmpty()) {
+				// 插入中間投影，只保留需要的欄位
+				root = new ProjectOperator(root, neededCols);
+				// 建立對照表：原始全域索引 → 壓縮後的新位置
+				mapping = ColumnHelper.columnMapping(neededCols);
+				// groupByIndexs 也要用 mapping 重新對應
+				if (!groupByIndexs.isEmpty()) {
+					final Map<Integer, Integer> m = mapping;
+					groupByIndexs = groupByIndexs.stream()
+							.map(i -> ColumnHelper.getValueAfterRemap(m, i))
+							.collect(Collectors.toList());
+				}
+			}
+		}
+
 		if (plainSelect.getGroupBy() != null || hasAggTask) {
-			Parser parser = new Parser();
 			// getGroupBy maybe null
 			if (plainSelect.getGroupBy() != null) {
-				groupByIndexs = parser.getGroupByColIndexs(
+				groupByIndexs = ColumnHelper.getGroupByColIndexs(
 						plainSelect.getGroupBy().getGroupByExpressionList(), tables);
 				groupByCount = groupByIndexs.size();
 			}
@@ -179,15 +203,22 @@ public class LightDB {
 					}
 				}
 			}
-			root = new AggregateOperator(root, groupByIndexs, aggTasks, aggExpressions, tables);
+			AggregateOperator aggregateOperator = new AggregateOperator(root, groupByIndexs, aggTasks, aggExpressions, tables);
+			if (mapping != null) aggregateOperator.setMapping(mapping);
+			root = aggregateOperator;
 		}
 
-		// 3. 如果有 ORDER BY，加上 SortOperator
+		// if ORDER BY, need SORT
 		if (plainSelect.getOrderByElements() != null) {
-			root = new SortOperator(root, tables, plainSelect.getOrderByElements(), groupByIndexs);
+			SortOperator sortOperator = new SortOperator(root, tables, plainSelect.getOrderByElements(), groupByIndexs);
+			if (mapping != null) sortOperator.setMapping(mapping);
+			root = sortOperator;
 		}
-		// 4. 最後加上 ProjectOperator (處理 SELECT 欄位)
-		root = new ProjectOperator(root, tables, plainSelect.getSelectItems(), groupByCount);
+
+		ProjectOperator projectOperator = new ProjectOperator(root, tables, plainSelect.getSelectItems(), groupByCount);
+		if (mapping != null) projectOperator.setMapping(mapping);
+		root = projectOperator;
+
 		if (plainSelect.getDistinct() != null) {
 			// sorted and unsorted tuples use different distinct methods
 			root = new DuplicateEliminationOperator(root,plainSelect.getOrderByElements() != null);

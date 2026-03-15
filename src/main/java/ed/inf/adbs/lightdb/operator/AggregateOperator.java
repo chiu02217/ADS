@@ -17,6 +17,65 @@ public class AggregateOperator extends Operator{
     private Iterator<Tuple> resultList;
     private List<Expression> aggregationExpr;
     private Visitor visitor;
+    // for projection push down (global original index -> index after projection)
+    private Map<Integer, Integer> mapping = null;
+
+    public List<String> getAggregationTasks() {
+        return aggregationTasks;
+    }
+
+    public void setAggregationTasks(List<String> aggregationTasks) {
+        this.aggregationTasks = aggregationTasks;
+    }
+
+    public Operator getInputSource() {
+        return inputSource;
+    }
+
+    public void setInputSource(Operator inputSource) {
+        this.inputSource = inputSource;
+    }
+
+    public List<Integer> getGroupByIndexs() {
+        return groupByIndexs;
+    }
+
+    public void setGroupByIndexs(List<Integer> groupByIndexs) {
+        this.groupByIndexs = groupByIndexs;
+    }
+
+    public Iterator<Tuple> getResultList() {
+        return resultList;
+    }
+
+    public void setResultList(Iterator<Tuple> resultList) {
+        this.resultList = resultList;
+    }
+
+    public List<Expression> getAggregationExpr() {
+        return aggregationExpr;
+    }
+
+    public void setAggregationExpr(List<Expression> aggregationExpr) {
+        this.aggregationExpr = aggregationExpr;
+    }
+
+    public Visitor getVisitor() {
+        return visitor;
+    }
+
+    public void setVisitor(Visitor visitor) {
+        this.visitor = visitor;
+    }
+
+    public Map<Integer, Integer> getMapping() {
+        return mapping;
+    }
+
+    public void setMapping(Map<Integer, Integer> mapping) {
+        this.mapping = mapping;
+        this.visitor.setMapping(mapping);
+    }
 
     public AggregateOperator(Operator input, List<Integer> groupByIndexss, List<String> aggregationTasks, List<Expression> aggregationExpr, List<String> tables) {
         this.inputSource = input;

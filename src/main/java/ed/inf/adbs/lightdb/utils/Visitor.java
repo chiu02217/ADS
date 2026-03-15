@@ -112,7 +112,7 @@ public class Visitor extends ExpressionVisitorAdapter{
         int originalIndex = ColumnHelper.getColumnIndexAfterJoin(column, joinTables);
         // 如果有 projection push-down，透過 ColumnMapping 轉換成新位置
         int tupleIndex = (mapping != null)
-                ? ColumnHelper.remap(mapping, originalIndex)
+                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
                 : originalIndex;
         currentValue = currentTuple.getKeyValue(tupleIndex);
     }

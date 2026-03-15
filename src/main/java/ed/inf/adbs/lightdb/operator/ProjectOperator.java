@@ -1,10 +1,11 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
+import ed.inf.adbs.lightdb.utils.ColumnHelper;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.statement.select.SelectItem;
-import java.io.IOException;
+
 import java.util.*;
 
 import static ed.inf.adbs.lightdb.utils.ColumnHelper.getColumnIndexAfterJoin;
@@ -17,9 +18,12 @@ public class ProjectOperator extends Operator {
     // all fields after the SELECT and before the FROM
     private List<SelectItem<?>> selectItems;
     private String tableName;
-    // tables which wait for table
+    // tables that used to JOIN
     private List<String> joinTables;
+    // Column indexs to retain
     private List<Integer> indexs = Collections.emptyList();
+    // for projection push down (global original index -> index after projection)
+    private Map<Integer, Integer> mapping = null;
 
 
     // need this to calculate the offset of the new index of columns
@@ -35,9 +39,8 @@ public class ProjectOperator extends Operator {
     }
     /**
      * Intermediate projection constructor (projection push-down).
-     * Keeps only the columns at indexs, used between the join tree
-     * and GROUP BY / ORDER BY to reduce tuple width.
-     *
+     * Keeps only the columns which we need, used between the join tree and GROUP BY / ORDER BY to reduce tuple width.
+     * ex: if JOIN produces 5 columns, we only keep the columns we need(<=5 cols)
      * @param inputSource  upstream operator
      * @param indexs  sorted list of original global indices to retain
      */
@@ -47,6 +50,38 @@ public class ProjectOperator extends Operator {
         this.selectItems = null;   // signals intermediate mode
         this.joinTables = Collections.emptyList();
         this.groupByCount = 0;
+    }
+
+    public List<String> getJoinTables() {
+        return joinTables;
+    }
+
+    public void setJoinTables(List<String> joinTables) {
+        this.joinTables = joinTables;
+    }
+
+    public List<Integer> getIndexs() {
+        return indexs;
+    }
+
+    public void setIndexs(List<Integer> indexs) {
+        this.indexs = indexs;
+    }
+
+    public Map<Integer, Integer> getMapping() {
+        return mapping;
+    }
+
+    public void setMapping(Map<Integer, Integer> mapping) {
+        this.mapping = mapping;
+    }
+
+    public int getGroupByCount() {
+        return groupByCount;
+    }
+
+    public void setGroupByCount(int groupByCount) {
+        this.groupByCount = groupByCount;
     }
 
     public Operator getInputSource() {
@@ -83,7 +118,8 @@ public class ProjectOperator extends Operator {
         if (nextTuple == null) {
             return null;
         }
-        // Intermediate projection mode: just keep the cols we need for final answer
+        // Intermediate projection:
+        // just keep the cols we need for final answer
         if (selectItems == null) {
             List<Integer> projected = new ArrayList<>();
             for (int index : indexs) {
@@ -99,9 +135,10 @@ public class ProjectOperator extends Operator {
         List<Integer> selectedCols = new ArrayList<>();
         if (groupByCount>0) {
             int funcCount = 0;
+            // deal with SELECT columns
             for (SelectItem<?> item : selectItems) {
                 Expression expr = item.getExpression();
-                // like MAX() SUM()
+                // ex SUM() MIN()
                 if (expr instanceof Function) {
                     // Aggregate result sits after all group-by columns
                     selectedCols.add(nextTuple.getKeyValue(groupByCount + funcCount));
@@ -114,7 +151,7 @@ public class ProjectOperator extends Operator {
             }
         }
         // no GROUPBY but aggregation tasks(SUM, MAX)
-        // tuple's format:
+        // tuple's format: (inportant!!)
         // [groupbyCol1, groupbyCols2, aggregationTask1, aggregationTask2, regularCol1, ...]
         else {
             int funcCount = 0;
@@ -124,8 +161,12 @@ public class ProjectOperator extends Operator {
                     selectedCols.add(nextTuple.getKeyValue(funcCount));
                     funcCount++;
                 } else {
-                    int index = getColumnIndexAfterJoin(expr, joinTables);
-                    selectedCols.add(nextTuple.getKeyValue(index));
+                    int originalIndex = getColumnIndexAfterJoin(expr, joinTables);
+                    // if projection push-down, mapping to new index
+                    int tupleIndex = (mapping != null)
+                            ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
+                            : originalIndex;
+                    selectedCols.add(nextTuple.getKeyValue(tupleIndex));
                 }
             }
         }

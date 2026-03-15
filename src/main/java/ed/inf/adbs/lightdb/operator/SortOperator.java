@@ -1,13 +1,12 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
+import ed.inf.adbs.lightdb.utils.ColumnHelper;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.select.OrderByElement;
+
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 public class SortOperator extends Operator {
     private Operator inputSource;
@@ -18,11 +17,9 @@ public class SortOperator extends Operator {
     private List<Tuple> sortedTuples = null;
     private int index = 0;
     private List<String> joinTables;
-
-    // When sorting after AggregateOperator, this holds the global column indices
-    // of the GROUP BY columns in order — so groupByIndexes.get(i) is the global
-    // index of the column sitting at position i in the aggregate output tuple.
-    // Empty list means no aggregation.
+    // for projection push down (global original index -> index after projection)
+    private Map<Integer, Integer> mapping = null;
+    // ex: GROUP BY Student.B, Stundent.B's original tuple index is 1, then groupByIndexes contains[1]
     private List<Integer> groupByIndexes;
     // non aggregation constructor
     public SortOperator(Operator inputSource, String tableName, List<OrderByElement> orderByElements) {
@@ -40,6 +37,30 @@ public class SortOperator extends Operator {
         this.tableName = joinTables.isEmpty() ? null : joinTables.get(0);
         this.orderByElements = orderByElements;
         this.groupByIndexes = groupByIndexes != null ? groupByIndexs : Collections.emptyList();
+    }
+
+    public List<String> getJoinTables() {
+        return joinTables;
+    }
+
+    public void setJoinTables(List<String> joinTables) {
+        this.joinTables = joinTables;
+    }
+
+    public Map<Integer, Integer> getMapping() {
+        return mapping;
+    }
+
+    public void setMapping(Map<Integer, Integer> mapping) {
+        this.mapping = mapping;
+    }
+
+    public List<Integer> getGroupByIndexes() {
+        return groupByIndexes;
+    }
+
+    public void setGroupByIndexes(List<Integer> groupByIndexes) {
+        this.groupByIndexes = groupByIndexes;
     }
 
     public Operator getInputSource() {
@@ -84,10 +105,9 @@ public class SortOperator extends Operator {
 
     @Override
     protected Tuple _getNextTuple() throws IOException {
-        // 1. 延遲加載：只有第一次呼叫時才讀取所有資料並排序
         // cautious!!
         if (sortedTuples == null) {
-            getAndSort();
+            sort();
         }
 
         // 2. 依照排序後的清單逐一回傳
@@ -96,20 +116,25 @@ public class SortOperator extends Operator {
         }
         return null;
     }
-    /// Order by
-    private void getAndSort() throws IOException {
+    // Order by
+    private void sort() throws IOException{
         sortedTuples = new ArrayList<>();
         Tuple tuple;
 
-        // 把下游所有資料吸乾！
-        while ((tuple = inputSource.getNextTuple()) != null) {
-            sortedTuples.add(tuple);
-        }
-        if (orderByElements != null && !orderByElements.isEmpty()) {
+        try {// 把下游所有資料吸乾！
+            while ((tuple = inputSource.getNextTuple()) != null) {
+                sortedTuples.add(tuple);
+            }
+            if (orderByElements != null && !orderByElements.isEmpty()) {
 //            for (OrderByElement element : orderByElements) {
 //                ColumnChecker.checkAndGetIndex(element.getExpression(), tableName, "OrderBy Error");
 //            }
-            sortedTuples.sort(new TupleComparator());
+                sortedTuples.sort(new TupleComparator());
+            }
+        }
+        catch (Exception e) {
+            System.err.println("sort operator error " + e.getMessage());
+            throw new IOException("sort operator error");
         }
     }
 
@@ -117,13 +142,31 @@ public class SortOperator extends Operator {
     public void reset() {
         index = 0;
     }
+//    private int calculateTuplePosition(Column col) {
+//        // calculate original global index
+//        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(col, joinTables);
+//
+//        // projection push-down mapping
+//        int newIndex = (mapping != null)
+//                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
+//                : originalIndex;
+//
+//        // 如果有 GROUP BY，找欄位在 group-by prefix 裡的 slot
+//        if (!groupByIndexes.isEmpty()) {
+//            for (int i = 0; i < groupByIndexes.size(); i++) {
+//                if (groupByIndexes.get(i) == newIndex) return i;
+//            }
+//        }
+//        return newIndex;
+//    }
 
+    /**
+     * class to compare two value and then sort
+     */
     private class TupleComparator implements Comparator<Tuple> {
         @Override
         public int compare(Tuple t1, Tuple t2) {
             for (OrderByElement element : orderByElements) {
-                Column col = (Column) element.getExpression();
-                //int positionAfterAgg = getColumnIndexAfterJoin(col);
                 int val1 = t1.getKeyValue(index);
                 int val2 = t2.getKeyValue(index);
                 // if same values then skip
