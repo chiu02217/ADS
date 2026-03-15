@@ -157,12 +157,13 @@ public class LightDB {
 		int groupByCount = 0;
 		List<Integer> groupByIndexs = Collections.emptyList();
 		// Projection push-down
-		// condition： JOIN && not SELECT ALL
-		// only keep the needed columns after join
+		// condition： not SELECT ALL
+		// only keep the needed columns after join (or scan for single-table queries)
 		boolean isSelectAll = plainSelect.getSelectItems().get(0).toString().equals("*");
 		Map<Integer, Integer> mapping = null;
 
-		if (tables.size() > 1 && !isSelectAll) {
+		// single table push down: extend push-down to single-table queries (previously only triggered for JOIN)
+		if (!isSelectAll) {
 			List<Integer> neededCols = ColumnHelper.collectNeededColumnsAfterJoin(plainSelect, tables);
 			if (!neededCols.isEmpty()) {
 				// 插入中間投影，只保留需要的欄位

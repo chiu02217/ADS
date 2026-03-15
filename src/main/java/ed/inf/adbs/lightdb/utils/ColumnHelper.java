@@ -55,10 +55,10 @@ public class ColumnHelper {
             throw new RuntimeException("Column not found in joined tables: " + expr);
         }
         Column col = (Column) expr;
-//        String tableName = (col.getTable() != null && col.getTable().getName() != null)
-//                ? col.getTable().getName()
-//                : tables.get(0);
-        String tableName = col.getTable().getName();
+        // single table push down: fall back to the first table when column has no table qualifier
+        String tableName = (col.getTable() != null && col.getTable().getName() != null)
+                ? col.getTable().getName()
+                : tables.get(0);
         String colName = ((Column) expr).getColumnName();
         int offset = 0;
         for (String table : tables) {
