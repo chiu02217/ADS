@@ -9,6 +9,7 @@ import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.schema.Column;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -24,7 +25,16 @@ public class Visitor extends ExpressionVisitorAdapter{
     private String tableName;
     // join table
     private List<String> joinTables;
+    // for mapping the indexs
+    private Map<Integer, Integer> mapping = null;
 
+    public Map<Integer, Integer> getMapping() {
+        return mapping;
+    }
+
+    public void setMapping(Map<Integer, Integer> mapping) {
+        this.mapping = mapping;
+    }
 
     public Tuple getCurrentTuple() {
         return currentTuple;
@@ -90,14 +100,21 @@ public class Visitor extends ExpressionVisitorAdapter{
      */
     @Override
     public void visit(Column column) {
-        String tableName = column.getTable().getName();
-        if (tableName == null) {
-            throw new RuntimeException("no table");
-        }
-        String columnName = column.getColumnName();
-        // get index
-        int index = ColumnChecker.getColumnIndexAfterJoin(column, this.joinTables);
-        currentValue = currentTuple.getKeyValue(index);
+//        String tableName = column.getTable().getName();
+//        if (tableName == null) {
+//            throw new RuntimeException("no table");
+//        }
+//        String columnName = column.getColumnName();
+//        // get index
+//        int index = ColumnHelper.getColumnIndexAfterJoin(column, this.joinTables);
+//        currentValue = currentTuple.getKeyValue(index);
+        // 計算原始全域索引
+        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(column, joinTables);
+        // 如果有 projection push-down，透過 ColumnMapping 轉換成新位置
+        int tupleIndex = (mapping != null)
+                ? ColumnHelper.remap(mapping, originalIndex)
+                : originalIndex;
+        currentValue = currentTuple.getKeyValue(tupleIndex);
     }
 
     /**

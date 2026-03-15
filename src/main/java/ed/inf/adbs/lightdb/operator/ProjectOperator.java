@@ -3,12 +3,16 @@ package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-import static ed.inf.adbs.lightdb.utils.ColumnChecker.getColumnIndexAfterJoin;
+import static ed.inf.adbs.lightdb.utils.ColumnHelper.getColumnIndexAfterJoin;
 
 /**
  * class to handle project (SELECT)
@@ -20,6 +24,8 @@ public class ProjectOperator extends Operator {
     private String tableName;
     // tables which wait for table
     private List<String> joinTables;
+    private List<Integer> indexs = Collections.emptyList();
+
 
     // need this to calculate the offset of the new index of columns
     private int groupByCount;
@@ -31,6 +37,21 @@ public class ProjectOperator extends Operator {
         this.tableName = joinTables.isEmpty() ? null : joinTables.get(0);
         this.selectItems = selectItems;
         this.groupByCount = groupByCount;
+    }
+    /**
+     * Intermediate projection constructor (projection push-down).
+     * Keeps only the columns at indexs, used between the join tree
+     * and GROUP BY / ORDER BY to reduce tuple width.
+     *
+     * @param inputSource  upstream operator
+     * @param indexs  sorted list of original global indices to retain
+     */
+    public ProjectOperator(Operator inputSource, List<Integer> indexs) {
+        this.inputSource = inputSource;
+        this.indexs = indexs;
+        this.selectItems = null;   // signals intermediate mode
+        this.joinTables = Collections.emptyList();
+        this.groupByCount = 0;
     }
 
     public Operator getInputSource() {
@@ -67,7 +88,14 @@ public class ProjectOperator extends Operator {
         if (nextTuple == null) {
             return null;
         }
-
+        // Intermediate projection mode: just keep the cols we need for final answer
+        if (selectItems == null) {
+            List<Integer> projected = new ArrayList<>();
+            for (int index : indexs) {
+                projected.add(nextTuple.getKeyValue(index));
+            }
+            return new Tuple(projected);
+        }
         // Select * condition
         if (selectItems.get(0).toString().equals("*")) {
             return nextTuple;
@@ -135,6 +163,76 @@ public class ProjectOperator extends Operator {
         }
         throw new RuntimeException("Column not found in GROUPBY output: " + expr);
     }
+    /**
+     * Collects every global column index referenced after the join tree,
+     * i.e. by SELECT, GROUP BY, ORDER BY, and aggregate expressions.
+     *
+     * @param plainSelect the parsed SQL statement
+     * @param tables      all table names in FROM order
+     * @return sorted list of needed global indices
+     */
+    public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables) {
+        Set<Integer> needed = new LinkedHashSet<>();
+
+        // SELECT clause
+        for (SelectItem<?> item : plainSelect.getSelectItems()) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Function) {
+                Function f = (Function) expr;
+                if (f.getParameters() != null) {
+                    for (Object param : f.getParameters().getExpressions()) {
+                        collectColumnsFromExpr((Expression) param, tables, needed);
+                    }
+                }
+            } else {
+                collectColumnsFromExpr(expr, tables, needed);
+            }
+        }
+
+        // GROUP BY
+        if (plainSelect.getGroupBy() != null) {
+            for (Object obj : plainSelect.getGroupBy().getGroupByExpressionList()) {
+                collectColumnsFromExpr((Expression) obj, tables, needed);
+            }
+        }
+
+        // ORDER BY
+        if (plainSelect.getOrderByElements() != null) {
+            for (OrderByElement elem : plainSelect.getOrderByElements()) {
+                collectColumnsFromExpr(elem.getExpression(), tables, needed);
+            }
+        }
+
+        List<Integer> result = new ArrayList<>(needed);
+        Collections.sort(result);
+        return result;
+    }
+
+    /**
+     * Recursively walks an expression and adds the global index of every Column
+     * reference to the needed set.
+     *
+     * @param expr   expression to walk
+     * @param tables all table names in FROM order
+     * @param needed accumulates discovered global indices
+     */
+    private static void collectColumnsFromExpr(Expression expr, List<String> tables,
+                                               Set<Integer> needed) {
+        if (expr == null) return;
+        if (expr instanceof Column) {
+            needed.add(getColumnIndexAfterJoin(expr, tables));
+        } else if (expr instanceof Multiplication) {
+            Multiplication mul = (Multiplication) expr;
+            collectColumnsFromExpr(mul.getLeftExpression(), tables, needed);
+            collectColumnsFromExpr(mul.getRightExpression(), tables, needed);
+        } else if (expr instanceof Addition) {
+            Addition add = (Addition) expr;
+            collectColumnsFromExpr(add.getLeftExpression(), tables, needed);
+            collectColumnsFromExpr(add.getRightExpression(), tables, needed);
+        }
+    }
+
+
     @Override
     public void reset() {
         inputSource.reset();

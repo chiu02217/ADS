@@ -16,7 +16,7 @@ public class Parser {
         List<Integer> indexs = new ArrayList<>();
         for (Object col : groupbyColList) {
             Expression expr = (Expression) col;
-            indexs.add(ColumnChecker.getColumnIndexAfterJoin(expr, tables));
+            indexs.add(ColumnHelper.getColumnIndexAfterJoin(expr, tables));
         }
         return indexs;
     }
