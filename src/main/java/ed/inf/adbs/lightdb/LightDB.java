@@ -169,21 +169,20 @@ public class LightDB {
 				root = new ProjectOperator(root, neededCols);
 				// 建立對照表：原始全域索引 → 壓縮後的新位置
 				mapping = ColumnHelper.columnMapping(neededCols);
-				// groupByIndexs 也要用 mapping 重新對應
-				if (!groupByIndexs.isEmpty()) {
-					final Map<Integer, Integer> m = mapping;
-					groupByIndexs = groupByIndexs.stream()
-							.map(i -> ColumnHelper.getValueAfterRemap(m, i))
-							.collect(Collectors.toList());
-				}
 			}
 		}
 
 		if (plainSelect.getGroupBy() != null || hasAggTask) {
 			// getGroupBy maybe null
 			if (plainSelect.getGroupBy() != null) {
-				groupByIndexs = ColumnHelper.getGroupByColIndexs(
-						plainSelect.getGroupBy().getGroupByExpressionList(), tables);
+				groupByIndexs = ColumnHelper.getGroupByColIndexs(plainSelect.getGroupBy().getGroupByExpressionList(), tables);
+				// FIX: remap 要在 groupByIndexs 計算完之後才做
+				if (mapping != null) {
+					final Map<Integer, Integer> map = mapping;
+					groupByIndexs = groupByIndexs.stream()
+							.map(i -> ColumnHelper.getValueAfterRemap(map, i))
+							.collect(Collectors.toList());
+				}
 				groupByCount = groupByIndexs.size();
 			}
 
@@ -193,10 +192,10 @@ public class LightDB {
 			for (SelectItem<?> item : plainSelect.getSelectItems()) {
 				Expression expr = item.getExpression();
 				if (expr instanceof Function) {
-					Function f = (Function) expr;
-					aggTasks.add(f.getName().toUpperCase());
-					if (f.getParameters() != null) {
-						Object obj = f.getParameters().getExpressions().get(0);
+					Function func = (Function) expr;
+					aggTasks.add(func.getName().toUpperCase());
+					if (func.getParameters() != null) {
+						Object obj = func.getParameters().getExpressions().get(0);
 						aggExpressions.add((Expression) obj);
 					} else {
 						aggExpressions.add(new net.sf.jsqlparser.expression.LongValue(1));
@@ -204,7 +203,6 @@ public class LightDB {
 				}
 			}
 			AggregateOperator aggregateOperator = new AggregateOperator(root, groupByIndexs, aggTasks, aggExpressions, tables);
-			if (mapping != null) aggregateOperator.setMapping(mapping);
 			root = aggregateOperator;
 		}
 

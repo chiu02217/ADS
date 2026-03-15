@@ -142,23 +142,23 @@ public class SortOperator extends Operator {
     public void reset() {
         index = 0;
     }
-//    private int calculateTuplePosition(Column col) {
-//        // calculate original global index
-//        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(col, joinTables);
-//
-//        // projection push-down mapping
-//        int newIndex = (mapping != null)
-//                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
-//                : originalIndex;
-//
-//        // 如果有 GROUP BY，找欄位在 group-by prefix 裡的 slot
-//        if (!groupByIndexes.isEmpty()) {
-//            for (int i = 0; i < groupByIndexes.size(); i++) {
-//                if (groupByIndexes.get(i) == newIndex) return i;
-//            }
-//        }
-//        return newIndex;
-//    }
+    private int calculateTuplePosition(Column col) {
+        // calculate original global index
+        int originalIndex = ColumnHelper.getColumnIndexAfterJoin(col, joinTables);
+
+        // projection push-down mapping
+        int newIndex = (mapping != null)
+                ? ColumnHelper.getValueAfterRemap(mapping, originalIndex)
+                : originalIndex;
+
+        // If GROUP BY，find the slot in the group-by prefix
+        if (!groupByIndexes.isEmpty()) {
+            for (int i = 0; i < groupByIndexes.size(); i++) {
+                if (groupByIndexes.get(i) == newIndex) return i;
+            }
+        }
+        return newIndex;
+    }
 
     /**
      * class to compare two value and then sort
@@ -167,8 +167,10 @@ public class SortOperator extends Operator {
         @Override
         public int compare(Tuple t1, Tuple t2) {
             for (OrderByElement element : orderByElements) {
-                int val1 = t1.getKeyValue(index);
-                int val2 = t2.getKeyValue(index);
+                Column col = (Column) element.getExpression();
+                int position = calculateTuplePosition(col);
+                int val1 = t1.getKeyValue(position);
+                int val2 = t2.getKeyValue(position);
                 // if same values then skip
                 if (val1 != val2) {
                     int result = Integer.compare(val1, val2);
