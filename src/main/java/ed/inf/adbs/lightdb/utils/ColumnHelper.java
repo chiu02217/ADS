@@ -1,12 +1,18 @@
 package ed.inf.adbs.lightdb.utils;
 import ed.inf.adbs.lightdb.schema.Schema;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
+import net.sf.jsqlparser.expression.operators.relational.ComparisonOperator;
 import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.SelectItem;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * class that address computation of columns
@@ -86,5 +92,90 @@ public class ColumnHelper {
                     "Column index " + originalIndex + " not found in projected layout");
         }
         return pos;
+    }
+    /**
+     * Collects every global column index referenced after the join tree,
+     * i.e. by SELECT, GROUP BY, ORDER BY, and aggregate expressions.
+     *
+     * @param plainSelect the parsed SQL statement
+     * @param tables      all table names in FROM order
+     * @return sorted list of needed global indices
+     */
+    public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables) {
+        Set<Integer> needed = new LinkedHashSet<>();
+
+        // SELECT clause
+        for (SelectItem<?> item : plainSelect.getSelectItems()) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Function) {
+                Function f = (Function) expr;
+                if (f.getParameters() != null) {
+                    for (Object param : f.getParameters().getExpressions()) {
+                        collectColumnsFromExpr((Expression) param, tables, needed);
+                    }
+                }
+            } else {
+                collectColumnsFromExpr(expr, tables, needed);
+            }
+        }
+
+        // GROUP BY
+        if (plainSelect.getGroupBy() != null) {
+            for (Object obj : plainSelect.getGroupBy().getGroupByExpressionList()) {
+                collectColumnsFromExpr((Expression) obj, tables, needed);
+            }
+        }
+
+        // ORDER BY
+        if (plainSelect.getOrderByElements() != null) {
+            for (OrderByElement elem : plainSelect.getOrderByElements()) {
+                collectColumnsFromExpr(elem.getExpression(), tables, needed);
+            }
+        }
+
+        List<Integer> result = new ArrayList<>(needed);
+        Collections.sort(result);
+        return result;
+    }
+
+    /**
+     * Recursively walks an expression and collects the distinct table names
+     * of all Column references found.
+     *
+     * @param expr   expression to walk
+     * @param result accumulates distinct table names found
+     */
+    public static void collectTableNames(Expression expr, List<String> result) {
+        walkColumns(expr, col -> {
+            if (col.getTable() != null && col.getTable().getName() != null) {
+                String tName = col.getTable().getName();
+                if (!result.contains(tName)) result.add(tName);
+            }
+        });
+    }
+    private static void collectColumnsFromExpr(Expression expr, List<String> tables,
+                                               Set<Integer> needed) {
+        walkColumns(expr, col -> needed.add(getColumnIndexAfterJoin(col, tables)));
+    }
+    /**
+     * Recursively walks an expression and calls callback for every Column found.
+     *
+     * @param expr
+     * @param callback action to perform on each Column node
+     */
+    private static void walkColumns(Expression expr, Consumer<Column> callback) {
+        if (expr == null) return;
+        if (expr instanceof Column) {
+            callback.accept((Column) expr);
+        } else if (expr instanceof Multiplication) {
+            walkColumns(((Multiplication) expr).getLeftExpression(), callback);
+            walkColumns(((Multiplication) expr).getRightExpression(), callback);
+        } else if (expr instanceof Addition) {
+            walkColumns(((Addition) expr).getLeftExpression(), callback);
+            walkColumns(((Addition) expr).getRightExpression(), callback);
+        } else if (expr instanceof ComparisonOperator) {
+            walkColumns(((ComparisonOperator) expr).getLeftExpression(), callback);
+            walkColumns(((ComparisonOperator) expr).getRightExpression(), callback);
+        }
     }
 }

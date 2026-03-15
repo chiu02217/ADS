@@ -42,48 +42,8 @@ public class WhereDecomposer {
         List<String> referenced = new ArrayList<>();
         // Walk all tokens in the expression string representation is fragile;
         // instead use a lightweight visitor to collect Column references.
-        collectColumnsFromExpr(expr, tables, referenced);
+        ColumnHelper.collectTableNames(expr, referenced);
         return referenced;
-    }
-
-    /**
-     * Recursively walks an expression to find all Column references and collect
-     * the distinct table names they belong to.
-     *
-     * @param expr       expression to inspect
-     * @param allTables  all tables in the query
-     * @param result     accumulates distinct table names found
-     */
-    private static void collectColumnsFromExpr(Expression expr, List<String> allTables,
-                                               List<String> result) {
-        if (expr instanceof Column) {
-            Column col = (Column) expr;
-            if (col.getTable() != null && col.getTable().getName() != null) {
-                String tName = col.getTable().getName();
-                if (!result.contains(tName)) {
-                    result.add(tName);
-                }
-            }
-        }
-        else if (expr instanceof AndExpression ) {
-            collectColumnsFromExpr(((AndExpression) expr).getLeftExpression(), allTables, result);
-            collectColumnsFromExpr(((AndExpression) expr).getRightExpression(), allTables, result);
-        }
-        else if (expr instanceof ComparisonOperator) {
-            ComparisonOperator cmp = (ComparisonOperator) expr;
-            collectColumnsFromExpr(cmp.getLeftExpression(), allTables, result);
-            collectColumnsFromExpr(cmp.getRightExpression(), allTables, result);
-        }
-        else if (expr instanceof Multiplication) {
-            Multiplication mul = (Multiplication) expr;
-            collectColumnsFromExpr(mul.getLeftExpression(), allTables, result);
-            collectColumnsFromExpr(mul.getRightExpression(), allTables, result);
-        }
-        else if (expr instanceof Addition) {
-            Addition add = (Addition) expr;
-            collectColumnsFromExpr(add.getLeftExpression(), allTables, result);
-            collectColumnsFromExpr(add.getRightExpression(), allTables, result);
-        }
     }
 
     /**

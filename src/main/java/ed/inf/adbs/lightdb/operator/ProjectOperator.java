@@ -3,11 +3,6 @@ package ed.inf.adbs.lightdb.operator;
 import ed.inf.adbs.lightdb.Tuple;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
-import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
-import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
-import net.sf.jsqlparser.schema.Column;
-import net.sf.jsqlparser.statement.select.OrderByElement;
-import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import java.io.IOException;
 import java.util.*;
@@ -162,74 +157,6 @@ public class ProjectOperator extends Operator {
             }
         }
         throw new RuntimeException("Column not found in GROUPBY output: " + expr);
-    }
-    /**
-     * Collects every global column index referenced after the join tree,
-     * i.e. by SELECT, GROUP BY, ORDER BY, and aggregate expressions.
-     *
-     * @param plainSelect the parsed SQL statement
-     * @param tables      all table names in FROM order
-     * @return sorted list of needed global indices
-     */
-    public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables) {
-        Set<Integer> needed = new LinkedHashSet<>();
-
-        // SELECT clause
-        for (SelectItem<?> item : plainSelect.getSelectItems()) {
-            Expression expr = item.getExpression();
-            if (expr instanceof Function) {
-                Function f = (Function) expr;
-                if (f.getParameters() != null) {
-                    for (Object param : f.getParameters().getExpressions()) {
-                        collectColumnsFromExpr((Expression) param, tables, needed);
-                    }
-                }
-            } else {
-                collectColumnsFromExpr(expr, tables, needed);
-            }
-        }
-
-        // GROUP BY
-        if (plainSelect.getGroupBy() != null) {
-            for (Object obj : plainSelect.getGroupBy().getGroupByExpressionList()) {
-                collectColumnsFromExpr((Expression) obj, tables, needed);
-            }
-        }
-
-        // ORDER BY
-        if (plainSelect.getOrderByElements() != null) {
-            for (OrderByElement elem : plainSelect.getOrderByElements()) {
-                collectColumnsFromExpr(elem.getExpression(), tables, needed);
-            }
-        }
-
-        List<Integer> result = new ArrayList<>(needed);
-        Collections.sort(result);
-        return result;
-    }
-
-    /**
-     * Recursively walks an expression and adds the global index of every Column
-     * reference to the needed set.
-     *
-     * @param expr   expression to walk
-     * @param tables all table names in FROM order
-     * @param needed accumulates discovered global indices
-     */
-    private static void collectColumnsFromExpr(Expression expr, List<String> tables,
-                                               Set<Integer> needed) {
-        if (expr == null) return;
-        if (expr instanceof Column) {
-            needed.add(getColumnIndexAfterJoin(expr, tables));
-        } else if (expr instanceof Multiplication) {
-            Multiplication mul = (Multiplication) expr;
-            collectColumnsFromExpr(mul.getLeftExpression(), tables, needed);
-            collectColumnsFromExpr(mul.getRightExpression(), tables, needed);
-        } else if (expr instanceof Addition) {
-            Addition add = (Addition) expr;
-            collectColumnsFromExpr(add.getLeftExpression(), tables, needed);
-            collectColumnsFromExpr(add.getRightExpression(), tables, needed);
-        }
     }
 
 
