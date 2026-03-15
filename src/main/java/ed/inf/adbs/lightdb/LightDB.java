@@ -11,6 +11,7 @@ import java.util.List;
 import ed.inf.adbs.lightdb.operator.*;
 import ed.inf.adbs.lightdb.schema.Schema;
 import ed.inf.adbs.lightdb.utils.Parser;
+import ed.inf.adbs.lightdb.utils.WhereDecomposer;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -35,13 +36,9 @@ public class LightDB {
 			System.err.println("Usage: LightDB database_dir input_file output_file");
 			return;
 		}
-		String databaseDir = args[0];
 		String inputFile = args[1];
 		String outputFile = args[2];
-		// load schema when starting the program
 		Schema.getInstance().initSchema(args[0]);
-		// Just for demonstration, replace this function call with your logic
-		//parsingExample(inputFile);
 		try {
 			Statement statement = CCJSqlParserUtil.parse(new FileReader(inputFile));
 			if (statement instanceof Select) {
@@ -49,12 +46,6 @@ public class LightDB {
 				String tableName = plainSelect.getFromItem().toString();
 				String tablePath = Schema.getInstance().getTablePath(tableName);
 				Operator exePlan = executionPlan(plainSelect, tablePath);
-//				Tuple tuple = exePlan.getNextTuple();
-//				while (tuple  != null) {
-//					System.out.println(tuple);
-//					tuple = exePlan.getNextTuple();
-//				}
-
 				// exe and output
 				execute(exePlan, outputFile);
 			}
@@ -97,9 +88,7 @@ public class LightDB {
 	 */
 	public static void execute(Operator root, String outputFile) {
 		try {
-			// Create a BufferedWriter
 			BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
-
 			// Iterate over the tuples produced by root
 			Tuple tuple = root.getNextTuple();
 			while (tuple != null) {
@@ -107,8 +96,6 @@ public class LightDB {
 				writer.newLine();
 				tuple = root.getNextTuple();
 			}
-
-			// Close the writer
 			writer.close();
 		}
 		catch (IOException e) {
@@ -119,33 +106,63 @@ public class LightDB {
 		List<String> tables = new ArrayList<>();
 		boolean hasAggTask = plainSelect.getSelectItems().stream()
 				.anyMatch(item -> item.getExpression() instanceof Function);
-		// scan
+		// collect tables' names after FROM
 		String firstTable = plainSelect.getFromItem().toString();
 		tables.add(firstTable);
+		if (plainSelect.getJoins() != null) {
+			for (Join join : plainSelect.getJoins()) {
+				tables.add(join.getRightItem().toString());
+			}
+		}
+		// Decompose WHERE into single-table selections + join conditions
+		WhereDecomposer decomposer = new WhereDecomposer();
+		decomposer.decompose(plainSelect.getWhere(), tables);
 		Operator root = new ScanOperator(firstTable, Schema.getInstance().getTablePath(firstTable));
 
-		// Join
+		Expression firstTableSelection = decomposer.tableSelections.get(firstTable);
+		if (firstTableSelection != null) {
+			SelectOperator sel = new SelectOperator(root, firstTableSelection, firstTable);
+			sel.getVisitor().setJoinTables(tables);
+			root = sel;
+		}
+		// if Join condition
 		if (plainSelect.getJoins() != null) {
 			for (Join join : plainSelect.getJoins()) {
 				String innerTable = join.getRightItem().toString();
-				tables.add(innerTable);
-				Operator rightScan = new ScanOperator(innerTable, Schema.getInstance().getTablePath(innerTable));
-				root = new BlockNestedJoinOperator(root, rightScan);
+				// Right-side scan with push-down selection
+				Operator rightScan = new ScanOperator(innerTable,
+						Schema.getInstance().getTablePath(innerTable));
+				Expression innerSel = decomposer.tableSelections.get(innerTable);
+				if (innerSel != null) {
+					SelectOperator sel = new SelectOperator(rightScan, innerSel, innerTable);
+					sel.getVisitor().setJoinTables(tables);
+					rightScan = sel;
+				}
+
+				// Join condition for this step (null means cross product)
+				Expression joinCond = decomposer.joinConditions.get(innerTable);
+				root = new BlockNestedJoinOperator(root, rightScan, joinCond, tables);
+
 			}
 		}
 
 		// WHERE 條件
-		if (plainSelect.getWhere() != null) {
-			SelectOperator sp = new SelectOperator(root, plainSelect.getWhere(), firstTable);
-			sp.getVisitor().setJoinTables(tables);
-			root = sp;
-		}
+//		if (plainSelect.getWhere() != null) {
+//			SelectOperator sp = new SelectOperator(root, plainSelect.getWhere(), firstTable);
+//			sp.getVisitor().setJoinTables(tables);
+//			root = sp;
+//		}
 		int groupByCount = 0;
 		List<Integer> groupByIndexs = Collections.emptyList(); // 宣告移到外面，預設空列表
 		if (plainSelect.getGroupBy() != null || hasAggTask) {
 			Parser parser = new Parser();
-			groupByIndexs = parser.getGroupByColIndexs(plainSelect.getGroupBy().getGroupByExpressionList(), tables);
-			groupByCount = groupByIndexs.size(); // <-- FIX: capture size
+			// getGroupBy maybe null
+			if (plainSelect.getGroupBy() != null) {
+				groupByIndexs = parser.getGroupByColIndexs(
+						plainSelect.getGroupBy().getGroupByExpressionList(), tables);
+				groupByCount = groupByIndexs.size();
+			}
+
 
 			List<String> aggTasks = new ArrayList<>();
 			List<Expression> aggExpressions = new ArrayList<>();
@@ -173,7 +190,7 @@ public class LightDB {
 		root = new ProjectOperator(root, tables, plainSelect.getSelectItems(), groupByCount);
 		if (plainSelect.getDistinct() != null) {
 			// sorted and unsorted tuples use different distinct methods
-			root = new DistinctOperator(root,plainSelect.getOrderByElements() != null);
+			root = new DuplicateEliminationOperator(root,plainSelect.getOrderByElements() != null);
 		}
 
 

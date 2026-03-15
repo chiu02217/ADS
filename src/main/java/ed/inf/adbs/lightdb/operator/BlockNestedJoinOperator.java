@@ -1,6 +1,9 @@
 package ed.inf.adbs.lightdb.operator;
 
 import ed.inf.adbs.lightdb.Tuple;
+import ed.inf.adbs.lightdb.utils.Visitor;
+import net.sf.jsqlparser.expression.Expression;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,10 +19,21 @@ public class BlockNestedJoinOperator extends Operator {
     private int bufferIndex = 0;
     private Tuple currentRightTuple = null;
     private static final int _blockSize = 50000;
+    private Expression joinCondition;
 
-    public BlockNestedJoinOperator(Operator leftTable, Operator rightTable) {
+    // Visitor used to evaluate the join condition on combined tuples
+    private Visitor visitor;
+
+    // All table names participating in the query (in FROM order), used by the Visitor
+    private List<String> joinTables;
+
+    public BlockNestedJoinOperator(Operator leftTable, Operator rightTable, Expression joinCondition, List<String> joinTables) {
         this.leftInputSource = leftTable;
         this.rightInputSource = rightTable;
+        this.joinCondition = joinCondition;
+        this.joinTables = joinTables;
+        this.visitor = new Visitor();
+        this.visitor.setJoinTables(joinTables);
         this.leftBuffer = new ArrayList<>();
         this.reset();
     }
@@ -34,6 +48,30 @@ public class BlockNestedJoinOperator extends Operator {
 
     public Tuple getCurrentRightTuple() {
         return currentRightTuple;
+    }
+
+    public Expression getJoinCondition() {
+        return joinCondition;
+    }
+
+    public void setJoinCondition(Expression joinCondition) {
+        this.joinCondition = joinCondition;
+    }
+
+    public Visitor getVisitor() {
+        return visitor;
+    }
+
+    public void setVisitor(Visitor visitor) {
+        this.visitor = visitor;
+    }
+
+    public List<String> getJoinTables() {
+        return joinTables;
+    }
+
+    public void setJoinTables(List<String> joinTables) {
+        this.joinTables = joinTables;
     }
 
     public void setCurrentRightTuple(Tuple currentRightTuple) {
@@ -89,10 +127,17 @@ public class BlockNestedJoinOperator extends Operator {
             // compare and join buffersize left tuples to 1 right tuple
             if (bufferIndex < leftBuffer.size()) {
                 Tuple leftTuple = leftBuffer.get(bufferIndex++);
-                return combineTuples(leftTuple, currentRightTuple);
+                Tuple combined = combineTuples(leftTuple, currentRightTuple);
+
+                // Apply join condition — skip pairs that do not match
+                if (joinCondition != null && !visitor.evaluate(combined, joinTables.get(0), joinCondition)) {
+                    continue;
+                }
+                return combined;
+
             }
-            // next right tuple turn
             else {
+                // Finished pairing the whole buffer with this right tuple; advance right
                 bufferIndex = 0;
                 currentRightTuple = rightInputSource.getNextTuple();
             }

@@ -6,13 +6,13 @@ import java.util.Set;
 /**
  * class to handle DISTINCT
  */
-public class DistinctOperator extends Operator {
+public class DuplicateEliminationOperator extends Operator {
     private Operator inputSource;
     private Tuple comparedTuple = null;
     private boolean isSorted = false;
     private Set<String> hashList = new HashSet<>();
 
-    public DistinctOperator(Operator inputSource, boolean isSorted) {
+    public DuplicateEliminationOperator(Operator inputSource, boolean isSorted) {
         this.inputSource = inputSource;
         this.isSorted = isSorted;
         if (!isSorted) {

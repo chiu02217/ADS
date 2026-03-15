@@ -107,9 +107,9 @@ public class SortOperator extends Operator {
             sortedTuples.add(tuple);
         }
         if (orderByElements != null && !orderByElements.isEmpty()) {
-            for (OrderByElement element : orderByElements) {
-                ColumnChecker.checkAndGetIndex(element.getExpression(), tableName, "OrderBy Error");
-            }
+//            for (OrderByElement element : orderByElements) {
+//                ColumnChecker.checkAndGetIndex(element.getExpression(), tableName, "OrderBy Error");
+//            }
             sortedTuples.sort(new TupleComparator());
         }
     }
@@ -139,33 +139,4 @@ public class SortOperator extends Operator {
         }
     }
 
-//    private int afterGroupByTuplePosition(Column col) {
-//        String tName = (col.getTable() != null && col.getTable().getName() != null)
-//                ? col.getTable().getName()
-//                : joinTables.get(0);
-//        String colName = col.getColumnName();
-//        int globalIndex = calOriginalIndex(tName, colName);
-//
-//        if (groupByIndexes.isEmpty()) {
-//            return globalIndex;
-//        }
-//        for (int i = 0; i < groupByIndexes.size(); i++) {
-//            if (groupByIndexes.get(i).equals(globalIndex)) {
-//                return i;
-//            }
-//        }
-//        // not found
-//        return -1;
-//    }
-
-//    private int calOriginalIndex(String tName, String colName) {
-//        int offset = 0;
-//        for (String t : joinTables) {
-//            if (t.equals(tName)) {
-//                return offset + Schema.getInstance().getColumnIndex(t, colName);
-//            }
-//            offset += Schema.getInstance().getNumberOfTableCol(t).size();
-//        }
-//        return offset;
-//    }
 }
