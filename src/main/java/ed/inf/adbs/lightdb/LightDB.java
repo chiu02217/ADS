@@ -123,52 +123,80 @@ public class LightDB {
 				tables.add(join.getRightItem().toString());
 			}
 		}
+
+		boolean isSelectAll = plainSelect.getSelectItems().get(0).toString().equals("*");
+
+		// Scan push-down: collect ALL globally referenced columns (SELECT + WHERE + GROUP BY + ORDER BY)
+		// so each ScanOperator reads only the columns the query actually needs
+		List<Integer> allNeededCols = isSelectAll ? Collections.emptyList()
+				: ColumnHelper.collectAllReferencedColumns(plainSelect, tables);
+		Map<Integer, Integer> scanMapping = allNeededCols.isEmpty() ? null
+				: ColumnHelper.columnMapping(allNeededCols);
+
 		// Decompose WHERE into single-table selections + join conditions
 		WhereDecomposer decomposer = new WhereDecomposer();
 		decomposer.decompose(plainSelect.getWhere(), tables);
-		Operator root = new ScanOperator(Schema.getInstance().getTablePath(firstTable));
+
+		// scan push-down: first table scan only reads its needed local columns
+		List<Integer> firstLocalCols = ColumnHelper.getLocalNeededCols(allNeededCols, firstTable, tables);
+		Operator root = new ScanOperator(Schema.getInstance().getTablePath(firstTable),
+				firstLocalCols.isEmpty() ? null : firstLocalCols);
 
 		Expression firstTableSelection = decomposer.tableSelections.get(firstTable);
 		if (firstTableSelection != null) {
 			SelectOperator sel = new SelectOperator(root, firstTableSelection, firstTable);
-			sel.getVisitor().setJoinTables(tables);
+			// scan push-down: use only this table as context so local index lookup is correct
+			sel.getVisitor().setJoinTables(Collections.singletonList(firstTable));
+			if (!firstLocalCols.isEmpty()) {
+				sel.getVisitor().setMapping(ColumnHelper.columnMapping(firstLocalCols));
+			}
 			root = sel;
 		}
 		// if Join condition
 		if (plainSelect.getJoins() != null) {
 			for (Join join : plainSelect.getJoins()) {
 				String innerTable = join.getRightItem().toString();
-				// Right-side scan with push-down selection
-				Operator rightScan = new ScanOperator(Schema.getInstance().getTablePath(innerTable));
+				// scan push-down: right-side scan only reads its needed local columns
+				List<Integer> innerLocalCols = ColumnHelper.getLocalNeededCols(allNeededCols, innerTable, tables);
+				Operator rightScan = new ScanOperator(Schema.getInstance().getTablePath(innerTable),
+						innerLocalCols.isEmpty() ? null : innerLocalCols);
 				Expression innerSel = decomposer.tableSelections.get(innerTable);
 				if (innerSel != null) {
 					SelectOperator sel = new SelectOperator(rightScan, innerSel, innerTable);
-					sel.getVisitor().setJoinTables(tables);
+					// scan push-down: use only this table as context so local index lookup is correct
+					sel.getVisitor().setJoinTables(Collections.singletonList(innerTable));
+					if (!innerLocalCols.isEmpty()) {
+						sel.getVisitor().setMapping(ColumnHelper.columnMapping(innerLocalCols));
+					}
 					rightScan = sel;
 				}
 
 				// Join condition for this step (null means cross product)
 				Expression joinCond = decomposer.joinConditions.get(innerTable);
-				root = new BlockNestedJoinOperator(root, rightScan, joinCond, tables);
-
+				BlockNestedJoinOperator joinOp = new BlockNestedJoinOperator(root, rightScan, joinCond, tables);
+				// scan push-down: join evaluates conditions on already scan-projected tuples; apply scan mapping
+				if (scanMapping != null) joinOp.getVisitor().setMapping(scanMapping);
+				root = joinOp;
 			}
 		}
 
 		int groupByCount = 0;
 		List<Integer> groupByIndexs = Collections.emptyList();
-		// Projection push-down
-		// condition： not SELECT ALL
-		// only keep the needed columns after join (or scan for single-table queries)
-		boolean isSelectAll = plainSelect.getSelectItems().get(0).toString().equals("*");
+		// Projection push-down: further reduce to only SELECT / GROUP BY / ORDER BY columns
+		// (drops any columns that were kept only for WHERE / join-condition evaluation)
 		Map<Integer, Integer> mapping = null;
-
-		// single table push down: extend push-down to single-table queries (previously only triggered for JOIN)
 		if (!isSelectAll) {
 			List<Integer> neededCols = ColumnHelper.collectNeededColumnsAfterJoin(plainSelect, tables);
 			if (!neededCols.isEmpty()) {
-				// 插入中間投影，只保留需要的欄位
-				root = new ProjectOperator(root, neededCols);
-				// 建立對照表：原始全域索引 → 壓縮後的新位置
+				// scan push-down: tuple indices are already compacted by scan projection;
+				// translate each neededCol global index to its position in the scan-projected tuple
+				List<Integer> intermediateIndexes = new ArrayList<>();
+				for (int g : neededCols) {
+					intermediateIndexes.add(scanMapping != null
+							? ColumnHelper.getValueAfterRemap(scanMapping, g)
+							: g);
+				}
+				root = new ProjectOperator(root, intermediateIndexes);
 				mapping = ColumnHelper.columnMapping(neededCols);
 			}
 		}
@@ -187,7 +215,6 @@ public class LightDB {
 				groupByCount = groupByIndexs.size();
 			}
 
-
 			List<String> aggTasks = new ArrayList<>();
 			List<Expression> aggExpressions = new ArrayList<>();
 			for (SelectItem<?> item : plainSelect.getSelectItems()) {
@@ -204,6 +231,7 @@ public class LightDB {
 				}
 			}
 			AggregateOperator aggregateOperator = new AggregateOperator(root, groupByIndexs, aggTasks, aggExpressions, tables);
+			if (mapping != null) aggregateOperator.setMapping(mapping);
 			root = aggregateOperator;
 		}
 
@@ -220,9 +248,8 @@ public class LightDB {
 
 		if (plainSelect.getDistinct() != null) {
 			// sorted and unsorted tuples use different distinct methods
-			root = new DuplicateEliminationOperator(root,plainSelect.getOrderByElements() != null);
+			root = new DuplicateEliminationOperator(root, plainSelect.getOrderByElements() != null);
 		}
-
 
 		return root;
 	}

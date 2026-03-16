@@ -4,6 +4,8 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.ComparisonOperator;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.select.OrderByElement;
@@ -107,7 +109,7 @@ public class ColumnHelper {
      * Translates an original global column index to its new compact position(index)
      * using a mapping produced by columnMapping().
      * ex: mapping = { 0→0, 4→1 }, then getKeyValue(0) getKeyValue(1)
-     * @param mapping       map from original global index to compact position
+     * @param mapping       push-down mapping, null if none
      * @param originalIndex the column's index in the full joined tuple
      * @return
      * @throws RuntimeException
@@ -213,6 +215,91 @@ public class ColumnHelper {
         } else if (expr instanceof ComparisonOperator) {
             walkColumns(((ComparisonOperator) expr).getLeftExpression(), callback);
             walkColumns(((ComparisonOperator) expr).getRightExpression(), callback);
+        } else if (expr instanceof AndExpression) {
+            walkColumns(((AndExpression) expr).getLeftExpression(), callback);
+            walkColumns(((AndExpression) expr).getRightExpression(), callback);
+        } else if (expr instanceof OrExpression) {
+            walkColumns(((OrExpression) expr).getLeftExpression(), callback);
+            walkColumns(((OrExpression) expr).getRightExpression(), callback);
         }
+    }
+
+    /**
+     * Collects every global column index referenced anywhere in the query:
+     * SELECT, WHERE (including per-table filters and join conditions), GROUP BY, ORDER BY.
+     * Used to determine the minimal set of columns each ScanOperator needs to produce
+     * for scan push-down.
+     *
+     * @param plainSelect the full SQL statement
+     * @param tables      all table names in FROM order
+     * @return sorted list of global column indices needed at scan time
+     */
+    public static List<Integer> collectAllReferencedColumns(PlainSelect plainSelect, List<String> tables) {
+        Set<Integer> needed = new HashSet<>();
+
+        // SELECT
+        for (SelectItem<?> item : plainSelect.getSelectItems()) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Function) {
+                Function f = (Function) expr;
+                if (f.getParameters() != null) {
+                    for (Object param : f.getParameters().getExpressions()) {
+                        collectColumnsFromExpr((Expression) param, tables, needed);
+                    }
+                }
+            } else {
+                collectColumnsFromExpr(expr, tables, needed);
+            }
+        }
+
+        // WHERE (covers both per-table conditions and join conditions)
+        if (plainSelect.getWhere() != null) {
+            collectColumnsFromExpr(plainSelect.getWhere(), tables, needed);
+        }
+
+        // GROUP BY
+        if (plainSelect.getGroupBy() != null) {
+            for (Object obj : plainSelect.getGroupBy().getGroupByExpressionList()) {
+                collectColumnsFromExpr((Expression) obj, tables, needed);
+            }
+        }
+
+        // ORDER BY
+        if (plainSelect.getOrderByElements() != null) {
+            for (OrderByElement elem : plainSelect.getOrderByElements()) {
+                collectColumnsFromExpr(elem.getExpression(), tables, needed);
+            }
+        }
+
+        List<Integer> result = new ArrayList<>(needed);
+        Collections.sort(result);
+        return result;
+    }
+
+    /**
+     * Extracts the within-table (local, 0-based) column indices needed for a specific table,
+     * derived from a sorted list of global column indices.
+     * Used to configure each ScanOperator for scan push-down.
+     *
+     * @param globalNeededCols sorted global column indices (from collectAllReferencedColumns)
+     * @param tableName        the table whose local indices we want
+     * @param tables           full list of tables in FROM order (for offset computation)
+     * @return sorted local indices to retain; empty list means no projection needed
+     */
+    public static List<Integer> getLocalNeededCols(List<Integer> globalNeededCols,
+                                                   String tableName, List<String> tables) {
+        int offset = 0;
+        for (String t : tables) {
+            if (t.equals(tableName)) break;
+            offset += Schema.getInstance().getNumberOfTableCol(t).size();
+        }
+        int size = Schema.getInstance().getNumberOfTableCol(tableName).size();
+        List<Integer> local = new ArrayList<>();
+        for (int g : globalNeededCols) {
+            if (g >= offset && g < offset + size) {
+                local.add(g - offset);
+            }
+        }
+        return local;
     }
 }
