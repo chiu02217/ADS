@@ -172,7 +172,7 @@ public class ColumnHelper {
     /**
      * Used for optimization push dwn
      * Collects global column indices referenced in the query.
-     * @param includeWhere true  → include WHERE columns (for scan push-down, covers all referenced cols)
+     * @param includeWhere true  → include WHERE columns (for push-down, covers all referenced cols)
      *                     false → only SELECT / GROUP BY / ORDER BY (for intermediate projection mapping)
      */
     public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables, boolean includeWhere) {
@@ -221,7 +221,7 @@ public class ColumnHelper {
     /**
      * Extracts the within-table (local, 0-based) column indices needed for a specific table,
      * derived from a sorted list of global column indices.
-     * Used to configure each ScanOperator for scan push-down.
+     * Used to configure each ScanOperator for push-down.
      *
      * @param globalNeededCols sorted global column indices (from collectAllReferencedColumns)
      * @param tableName        the table whose local indices we want

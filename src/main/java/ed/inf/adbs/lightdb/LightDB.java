@@ -123,7 +123,7 @@ public class LightDB {
 		Expression firstTableSelection = decomposer.tableSelections.get(firstTable);
 		if (firstTableSelection != null) {
 			SelectOperator sel = new SelectOperator(root, firstTableSelection, firstTable);
-			// scan push-down: use only this table as context so local index lookup is correct
+			// push-down: use only this table as context so local index lookup is correct
 			sel.getVisitor().setJoinTables(Collections.singletonList(firstTable));
 			if (!firstLocalCols.isEmpty()) {
 				sel.getVisitor().setMapping(ColumnHelper.columnMapping(firstLocalCols));
@@ -141,7 +141,7 @@ public class LightDB {
 				Expression innerSel = decomposer.tableSelections.get(innerTable);
 				if (innerSel != null) {
 					SelectOperator sel = new SelectOperator(rightScan, innerSel, innerTable);
-					// scan push-down: use only this table as context so local index lookup is correct
+					// push-down: use only this table as context so local index lookup is correct
 					sel.getVisitor().setJoinTables(Collections.singletonList(innerTable));
 					if (!innerLocalCols.isEmpty()) {
 						sel.getVisitor().setMapping(ColumnHelper.columnMapping(innerLocalCols));
