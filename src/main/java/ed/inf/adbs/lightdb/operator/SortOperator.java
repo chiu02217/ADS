@@ -131,6 +131,7 @@ public class SortOperator extends Operator {
 
     @Override
     public void reset() {
+        // mentioned in piazza
         index = 0;
     }
     private int calculateTuplePosition(Column col) {
