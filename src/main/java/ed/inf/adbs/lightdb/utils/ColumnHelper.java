@@ -164,9 +164,7 @@ public class ColumnHelper {
             walkColumns(((OrExpression) expr).getLeftExpression(), callback);
             walkColumns(((OrExpression) expr).getRightExpression(), callback);
         }
-        else{
-            throw new RuntimeException("walk columns error");
-        }
+        // literals (LongValue, etc.) and other non-column leaf nodes: no need  to collect!!!
     }
 
     /**

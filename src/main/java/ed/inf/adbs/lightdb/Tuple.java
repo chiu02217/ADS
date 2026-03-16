@@ -12,7 +12,7 @@ public class Tuple {
     public Tuple(String tuple) {
         this.attrs = new ArrayList<>();
         if (tuple != null) {
-            // ex: 1, 2, 3 => [1,2,3]
+            // ex: 1, 2, 3 => [1 ,2 ,3]
             String[] attrs = tuple.trim().split(",");
             for (String attr : attrs) {
                 if (attr !=null && !attr.equals(" ")) {
@@ -38,7 +38,7 @@ public class Tuple {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < attrs.size(); i++) {
             sb.append(attrs.get(i));
-            if (i < attrs.size() - 1) sb.append(",");
+            if (i < attrs.size() - 1) sb.append(", ");
         }
         return sb.toString();
     }
