@@ -5,9 +5,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+/**
+ * classs to dealt with WHERE predicate
+ */
 public class WhereDecomposer {
     /**
-     * Per-table selection conditions.
+     * Per table selection conditions.
      * Key: table name;
      * Value: combined predicate to push down to that table's scan.
      */
@@ -33,7 +37,8 @@ public class WhereDecomposer {
             // recursive!!
             collectPredicates(and.getLeftExpression(), out);
             collectPredicates(and.getRightExpression(), out);
-        } else {
+        }
+        else {
             out.add(expr);
         }
     }
@@ -55,7 +60,7 @@ public class WhereDecomposer {
      * Decomposes the WHERE expression and populates tableSelections and joinConditions.
      * Ex: if Where is WHERE Student.A = 5 AND Enrolled.H > 3 AND Student.A = Enrolled.A
      * then : [Student.A = 5,  Enrolled.H > 3,  Student.A = Enrolled.A]
-     * @param where   the WHERE clause expression (may be null)
+     * @param where   WHERE expression (may be null)
      * @param tables  all tables in FROM order
      */
     public void decompose(Expression where, List<String> tables) {

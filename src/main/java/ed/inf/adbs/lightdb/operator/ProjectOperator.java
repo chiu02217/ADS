@@ -12,6 +12,7 @@ import static ed.inf.adbs.lightdb.utils.ColumnHelper.getColumnIndexAfterJoin;
 
 /**
  * class to handle project (SELECT)
+ * if the comments are not clear enough, please refer to README.md
  */
 public class ProjectOperator extends Operator {
     private Operator inputSource;
@@ -143,7 +144,8 @@ public class ProjectOperator extends Operator {
                     // Aggregate result sits after all group-by columns
                     selectedCols.add(nextTuple.getKeyValue(groupByCount + funcCount));
                     funcCount++;
-                } else {
+                }
+                else {
                     // Regular column: find its position inside the group-by output block
                     int pos = getColumnIndexAfterGroupBy(expr);
                     selectedCols.add(nextTuple.getKeyValue(pos));
@@ -160,7 +162,8 @@ public class ProjectOperator extends Operator {
                 if (expr instanceof Function) {
                     selectedCols.add(nextTuple.getKeyValue(funcCount));
                     funcCount++;
-                } else {
+                }
+                else {
                     int tupleIndex = ColumnHelper.resolveColumnIndex(expr, joinTables, mapping);
                     selectedCols.add(nextTuple.getKeyValue(tupleIndex));
                 }

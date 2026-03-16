@@ -7,6 +7,7 @@ import java.util.*;
 
 /**
  * class to handle aggregation tasks (GROUPBY, SUM, ...)
+ * if the comments are not clear enough, please refer to README.md
  */
 public class AggregateOperator extends Operator{
     private List<String> aggregationTasks;

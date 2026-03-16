@@ -8,24 +8,28 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ *  class to deal with scan the table
+ *  if the comments are not clear enough, please refer to README.md
+ */
 public class ScanOperator extends Operator{
-    // scan push-down: if set, only these local (within-table) column indices are returned
-    private List<Integer> projectedLocalCols;
+    // used for push-downo, only needed columns are returned
+    private List<Integer> projectedCols;
 
     public ScanOperator(String tablePath) {
         this.tablePath = tablePath;
-        this.projectedLocalCols = null;
+        this.projectedCols = null;
         this.reset();
     }
 
     /**
-     * Scan push-down constructor: only returns the specified local column indices.
-     * @param tablePath        path to the CSV file
-     * @param projectedLocalCols local (0-based within-table) indices to retain; null = full scan
+     * push-down constructor, only returns the specified column indexs.
+     * @param tablePath
+     * @param projectedCols null = full scan(all columns)
      */
-    public ScanOperator(String tablePath, List<Integer> projectedLocalCols) {
+    public ScanOperator(String tablePath, List<Integer> projectedCols) {
         this.tablePath = tablePath;
-        this.projectedLocalCols = projectedLocalCols;
+        this.projectedCols = projectedCols;
         this.reset();
     }
 
@@ -34,11 +38,11 @@ public class ScanOperator extends Operator{
         String line = reader.readLine();
         if (line == null) return null;
         Tuple full = new Tuple(line);
-        if (projectedLocalCols == null) return full;
-        // scan push-down: only keep the needed local columns
+        if (projectedCols == null) return full;
+        // for push-down, only keep the needed columns
         List<Integer> projected = new ArrayList<>();
-        for (int idx : projectedLocalCols) {
-            projected.add(full.getKeyValue(idx));
+        for (int index : projectedCols) {
+            projected.add(full.getKeyValue(index));
         }
         return new Tuple(projected);
     }

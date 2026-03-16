@@ -8,6 +8,7 @@ import java.io.IOException;
 
 /**
  * class to deal with WHERE predicate
+ * if the comments are not clear enough, please refer to README.md
  */
 public class SelectOperator extends Operator{
     private Operator inputSource;
@@ -62,7 +63,8 @@ public class SelectOperator extends Operator{
                     return tuple;
                 }
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             System.err.println("select operator error " + e.getMessage());
             throw new IOException("select operator error");
         }

@@ -54,7 +54,7 @@ public class Tuple {
     /**
      * get value of the specific index of the tuple
      * @param index
-     * @return
+     * @return value of the index of the tuple
      */
     public int getKeyValue(int index) {
         if (index >= 0 && index < attrs.size()) {

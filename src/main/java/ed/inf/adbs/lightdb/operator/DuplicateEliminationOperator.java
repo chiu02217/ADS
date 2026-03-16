@@ -5,6 +5,7 @@ import java.util.Set;
 
 /**
  * class to handle DISTINCT
+ *  * if the comments are not clear enough, please refer to README.md
  */
 public class DuplicateEliminationOperator extends Operator {
     private Operator inputSource;

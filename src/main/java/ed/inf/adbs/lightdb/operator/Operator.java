@@ -18,7 +18,8 @@ public abstract class Operator extends BaseOperator {
     public Tuple getNextTuple() {
         try {
             return _getNextTuple();
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             System.err.println("get next tuple error:" + this.getClass().getSimpleName());
             throw new RuntimeException(e);
         }

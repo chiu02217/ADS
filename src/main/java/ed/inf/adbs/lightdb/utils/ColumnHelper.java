@@ -12,7 +12,6 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.SelectItem;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -20,17 +19,6 @@ import java.util.function.Consumer;
  * class that deal with the computation of columns
  */
 public class ColumnHelper {
-    public static int checkAndGetIndex(Expression expr, String tableName, String error) throws IOException {
-        if (!(expr instanceof Column)) {
-            throw new IOException(error);
-        }
-        String colName = ((Column) expr).getColumnName();
-        int index = Schema.getInstance().getColumnIndex(tableName, colName);
-        if (index == -1) {
-            throw new IOException(error);
-        }
-        return index;
-    }
     /**
      * return the culumn indexs used to groupby
      * @param groupbyColList
@@ -122,52 +110,6 @@ public class ColumnHelper {
         }
         return pos;
     }
-    /**
-     * Collects every global column index referenced after the join tree,
-     * i.e. by SELECT, GROUP BY, ORDER BY, and aggregate expressions.
-     * ex:
-     *  Original joined tuple: [A=0, B=1, C=2, D=3, E=4]
-     *  needed columns indexs = [0, 4]  ( A and E)
-     * @param plainSelect  SQL
-     * @param tables      all table names
-     * @return sorted list of needed global indices
-     */
-    public static List<Integer> collectNeededColumnsAfterJoin(PlainSelect plainSelect, List<String> tables) {
-        Set<Integer> needed = new HashSet<>();
-
-        // SELECT
-        for (SelectItem<?> item : plainSelect.getSelectItems()) {
-            Expression expr = item.getExpression();
-            if (expr instanceof Function) {
-                Function f = (Function) expr;
-                if (f.getParameters() != null) {
-                    for (Object param : f.getParameters().getExpressions()) {
-                        collectColumnsFromExpr((Expression) param, tables, needed);
-                    }
-                }
-            } else {
-                collectColumnsFromExpr(expr, tables, needed);
-            }
-        }
-
-        // GROUP BY
-        if (plainSelect.getGroupBy() != null) {
-            for (Object obj : plainSelect.getGroupBy().getGroupByExpressionList()) {
-                collectColumnsFromExpr((Expression) obj, tables, needed);
-            }
-        }
-
-        // ORDER BY
-        if (plainSelect.getOrderByElements() != null) {
-            for (OrderByElement elem : plainSelect.getOrderByElements()) {
-                collectColumnsFromExpr(elem.getExpression(), tables, needed);
-            }
-        }
-
-        List<Integer> result = new ArrayList<>(needed);
-        Collections.sort(result);
-        return result;
-    }
 
     /**
      * Recursively walks an expression and collects the distinct table names
@@ -222,19 +164,18 @@ public class ColumnHelper {
             walkColumns(((OrExpression) expr).getLeftExpression(), callback);
             walkColumns(((OrExpression) expr).getRightExpression(), callback);
         }
+        else{
+            throw new RuntimeException("walk columns error");
+        }
     }
 
     /**
-     * Collects every global column index referenced anywhere in the query:
-     * SELECT, WHERE (including per-table filters and join conditions), GROUP BY, ORDER BY.
-     * Used to determine the minimal set of columns each ScanOperator needs to produce
-     * for scan push-down.
-     *
-     * @param plainSelect the full SQL statement
-     * @param tables      all table names in FROM order
-     * @return sorted list of global column indices needed at scan time
+     * Used for optimization push dwn
+     * Collects global column indices referenced in the query.
+     * @param includeWhere true  → include WHERE columns (for scan push-down, covers all referenced cols)
+     *                     false → only SELECT / GROUP BY / ORDER BY (for intermediate projection mapping)
      */
-    public static List<Integer> collectAllReferencedColumns(PlainSelect plainSelect, List<String> tables) {
+    public static List<Integer> collectNeededColumns(PlainSelect plainSelect, List<String> tables, boolean includeWhere) {
         Set<Integer> needed = new HashSet<>();
 
         // SELECT
@@ -247,13 +188,14 @@ public class ColumnHelper {
                         collectColumnsFromExpr((Expression) param, tables, needed);
                     }
                 }
-            } else {
+            }
+            else {
                 collectColumnsFromExpr(expr, tables, needed);
             }
         }
 
-        // WHERE (covers both per-table conditions and join conditions)
-        if (plainSelect.getWhere() != null) {
+        // WHERE
+        if (includeWhere && plainSelect.getWhere() != null) {
             collectColumnsFromExpr(plainSelect.getWhere(), tables, needed);
         }
 

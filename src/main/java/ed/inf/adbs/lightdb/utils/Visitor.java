@@ -10,9 +10,9 @@ import net.sf.jsqlparser.schema.Column;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
- *
  *  class to handle predicate
   */
 public class Visitor extends ExpressionVisitorAdapter{
@@ -100,95 +100,39 @@ public class Visitor extends ExpressionVisitorAdapter{
      */
     @Override
     public void visit(Column column) {
-//        String tableName = column.getTable().getName();
-//        if (tableName == null) {
-//            throw new RuntimeException("no table");
-//        }
-//        String columnName = column.getColumnName();
-//        // get index
-//        int index = ColumnHelper.getColumnIndexAfterJoin(column, this.joinTables);
-//        currentValue = currentTuple.getKeyValue(index);
         int tupleIndex = ColumnHelper.resolveColumnIndex(column, joinTables, mapping);
         currentValue = currentTuple.getKeyValue(tupleIndex);
     }
 
     /**
-     * >
-     * @param greaterThan
+     * function used by comparison expression(<=, >=, ==, !=)
+     * @param expr
+     * @param predicate
      */
-    @Override
-    public void visit(GreaterThan greaterThan) {
-        greaterThan.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        greaterThan.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = leftLeaf > rightLeaf;
+    private void visitComparison(BinaryExpression expr, BiPredicate<Integer, Integer> predicate) {
+        expr.getLeftExpression().accept(this);
+        int left = currentValue;
+        expr.getRightExpression().accept(this);
+        currentResult = predicate.test(left, currentValue);
     }
 
-    /**
-     * <
-     * @param minorThan
-     */
-    @Override
-    public void visit(MinorThan minorThan) {
-        minorThan.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        minorThan.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = leftLeaf < rightLeaf;
-        //System.out.println("Debug: " + leftLeaf + " < " + rightLeaf + " = " + currentResult);
+    @Override public void visit(GreaterThan e){
+        visitComparison(e, (l, r) -> l > r);
     }
-
-    /**
-     * ==
-     * @param equalsTo
-     */
-    @Override
-    public void visit(EqualsTo equalsTo) {
-        equalsTo.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        equalsTo.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = leftLeaf == rightLeaf;
+    @Override public void visit(MinorThan e) {
+        visitComparison(e, (l, r) -> l < r);
     }
-
-    /**
-     * !=
-     * @param notEqualsTo
-     */
-    @Override
-    public void visit(NotEqualsTo notEqualsTo) {
-        notEqualsTo.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        notEqualsTo.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = leftLeaf != rightLeaf;
+    @Override public void visit(EqualsTo e){
+        visitComparison(e, (l, r) -> l.equals(r));
     }
-
-    /**
-     * >=
-     * @param greaterThanEquals
-     */
-    @Override
-    public void visit(GreaterThanEquals greaterThanEquals) {
-        greaterThanEquals.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        greaterThanEquals.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = (leftLeaf >= rightLeaf);
+    @Override public void visit(NotEqualsTo e){
+        visitComparison(e, (l, r) -> !l.equals(r));
     }
-
-    /**
-     * <=
-     * @param minorThanEquals
-     */
-    @Override
-    public void visit(MinorThanEquals minorThanEquals) {
-        minorThanEquals.getLeftExpression().accept(this);
-        int leftLeaf = currentValue;
-        minorThanEquals.getRightExpression().accept(this);
-        int rightLeaf = currentValue;
-        currentResult = (leftLeaf <= rightLeaf);
+    @Override public void visit(GreaterThanEquals e){
+        visitComparison(e, (l, r) -> l >= r);
+    }
+    @Override public void visit(MinorThanEquals e){
+        visitComparison(e, (l, r) -> l <= r);
     }
 
     /**

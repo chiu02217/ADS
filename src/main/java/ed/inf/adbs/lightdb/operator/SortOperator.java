@@ -8,6 +8,10 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * class to handle sorting (ORDER BY)
+ * if the comments are not clear enough, please refer to README.md
+ */
 public class SortOperator extends Operator {
     private Operator inputSource;
     private List<OrderByElement> orderByElements;
@@ -21,15 +25,6 @@ public class SortOperator extends Operator {
     private Map<Integer, Integer> mapping = null;
     // ex: GROUP BY Student.B, Stundent.B's original tuple index is 1, then groupByIndexes contains[1]
     private List<Integer> groupByIndexes;
-    // non aggregation constructor
-    public SortOperator(Operator inputSource, String tableName, List<OrderByElement> orderByElements) {
-        this.inputSource = inputSource;
-        this.tableName = tableName;
-        this.orderByElements = orderByElements;
-        this.joinTables = Collections.singletonList(tableName);
-        this.groupByIndexes = Collections.emptyList();
-    }
-    // for aggregation constructor
     public SortOperator(Operator inputSource, List<String> joinTables,
                         List<OrderByElement> orderByElements, List<Integer> groupByIndexs) {
         this.inputSource = inputSource;
@@ -110,7 +105,6 @@ public class SortOperator extends Operator {
             sort();
         }
 
-        // 2. 依照排序後的清單逐一回傳
         if (index < sortedTuples.size()) {
             return sortedTuples.get(index++);
         }
@@ -120,15 +114,12 @@ public class SortOperator extends Operator {
     private void sort() throws IOException{
         sortedTuples = new ArrayList<>();
         Tuple tuple;
-
-        try {// 把下游所有資料吸乾！
+        // get data and sort them
+        try {
             while ((tuple = inputSource.getNextTuple()) != null) {
                 sortedTuples.add(tuple);
             }
             if (orderByElements != null && !orderByElements.isEmpty()) {
-//            for (OrderByElement element : orderByElements) {
-//                ColumnChecker.checkAndGetIndex(element.getExpression(), tableName, "OrderBy Error");
-//            }
                 sortedTuples.sort(new TupleComparator());
             }
         }

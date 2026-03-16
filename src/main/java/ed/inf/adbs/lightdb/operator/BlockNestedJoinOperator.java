@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * use BlockNested method to join
+ *  * if the comments are not clear enough, please refer to README.md
  */
 public class BlockNestedJoinOperator extends Operator {
     private Operator leftInputSource;
