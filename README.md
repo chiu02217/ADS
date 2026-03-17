@@ -9,7 +9,8 @@ ADS coursework. A lightweight in-memory relational database engine that parses S
    troubled me when moving from Task 1 to Task 2 optimisation, especially when executing query 9-12 that involve more than one column or aggregation tasks such as SUM().
 2. When I finished writing the code and was refactoring it, I asked the AI for its opinion.
 3. `Helping` me writing some comments more clear
-4. `Generating` README.md (but not this part)
+4. `Generating` some unit tests (helped me a lot when finding bugs)
+5. `Generating` README.md (ofcourse not this part)
 
 ## Usage
 
@@ -30,6 +31,8 @@ src/main/java/ed/inf/adbs/lightdb/
 ├── operator/             # Pipeline operator implementations (see operator/README.md)
 ├── schema/               # Schema loading and metadata (see schema/README.md)
 └── utils/                # Expression evaluation and column utilities (see utils/README.md)
+
+Besides the main README, there are 3 README files in opeartor/, schema/ and utils/ folders respectively
 ```
 
 ---

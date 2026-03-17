@@ -11,6 +11,7 @@ public class DuplicateEliminationOperator extends Operator {
     private Operator inputSource;
     private Tuple comparedTuple = null;
     private boolean isSorted = false;
+    // contains no duplicate val
     private Set<String> hashList = new HashSet<>();
 
     public DuplicateEliminationOperator(Operator inputSource, boolean isSorted) {
@@ -32,7 +33,7 @@ public class DuplicateEliminationOperator extends Operator {
     protected Tuple distinctFromSorted(){
         Tuple currentTuple;
         while ((currentTuple = inputSource.getNextTuple()) != null) {
-            if (comparedTuple == null || currentTuple.toString().equals(comparedTuple.toString())) {
+            if (comparedTuple == null || !currentTuple.toString().equals(comparedTuple.toString())) {
                 comparedTuple = currentTuple;
                 return currentTuple;
             }
@@ -55,5 +56,6 @@ public class DuplicateEliminationOperator extends Operator {
     public void reset() {
         inputSource.reset();
         comparedTuple = null;
+        hashList.clear();
     }
 }
