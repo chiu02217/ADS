@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ed.inf.adbs</groupId>
   <artifactId>lightdb</artifactId>
   <packaging>jar</packaging>
   <version>1.0.0</version>
-    
+
   <name>LightDB</name>
   <url>https://course.inf.ed.ac.uk/adbs</url>
 
@@ -26,9 +26,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-    	<groupId>com.github.jsqlparser</groupId>
-    	<artifactId>jsqlparser</artifactId>
-    	<version>4.7</version>
+      <groupId>com.github.jsqlparser</groupId>
+      <artifactId>jsqlparser</artifactId>
+      <version>4.7</version>
     </dependency>
   </dependencies>
 
@@ -77,29 +77,20 @@
       </plugins>
     </pluginManagement>
     <plugins>
-    	<plugin>
-    		<groupId>org.apache.maven.plugins</groupId>
-    		<artifactId>maven-assembly-plugin</artifactId>
-   		    <configuration>
-		        <archive>
-		            <manifest>
-		                <mainClass>ed.inf.adbs.lightdb.LightDB</mainClass>
-		            </manifest>
-		        </archive>
-		        <descriptorRefs>
-		            <descriptorRef>jar-with-dependencies</descriptorRef>
-		        </descriptorRefs>
-		    </configuration>
-            <executions>
-                <execution>
-                    <id>make-assembly</id>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>single</goal>
-                    </goals>
-                </execution>
-            </executions>
-    	</plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>ed.inf.adbs.lightdb.LightDB</mainClass>
+            </manifest>
+          </archive>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
